@@ -11,6 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
+<script>window.REP_PWA=true;</script>
 <title>Rep Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,6 +116,17 @@ nav button{font-size:12px}
 .reader{width:100%;min-height:220px;background:#000;border-radius:12px;overflow:hidden}.reader video{width:100%!important;height:auto!important;display:block}
 .wk{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end}.wkc{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
 .wkb{position:relative;width:100%;height:64px;background:var(--raised);border-radius:6px;overflow:hidden;display:flex;align-items:flex-end}.wkb i{display:block;width:100%;border-radius:6px 6px 0 0}.wkg{position:absolute;left:0;right:0;border-top:1px dashed var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:86px;border-top:3px solid var(--line)}
+.tile .v{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.05;word-break:break-word}.tile .k{font-size:11.5px;color:var(--muted);line-height:1.25}
+.tile.good{border-top-color:var(--good)}.tile.warn{border-top-color:var(--warn)}.tile.bad{border-top-color:var(--bad)}
+.slist{display:flex;flex-direction:column}.srow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}.srow:last-child{border-bottom:0}.srow .grow{flex:1;min-width:0}.srow.done .grow{text-decoration:line-through;color:var(--muted)}
+.tick.sm{width:34px;height:34px;font-size:15px;flex:none}
+.jentry{border-bottom:1px solid var(--line);padding:8px 0;display:flex;flex-direction:column;gap:4px}.jentry .top{justify-content:space-between}.jtext{white-space:pre-wrap;font-size:15px;color:var(--text)}
+.lockscr{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+.rcode{font-family:var(--display);font-size:34px;font-weight:700;letter-spacing:.08em;text-align:center;background:var(--raised);border-radius:10px;padding:14px}
+body.privacy #app{filter:blur(18px)}
+@media (max-width:360px){.tiles{grid-template-columns:repeat(2,1fr)}}
 .fold{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}.fold summary{list-style:none;cursor:pointer;padding:14px;font-family:var(--display);font-size:20px;font-weight:700;display:flex;justify-content:space-between;align-items:center}.fold summary::-webkit-details-marker{display:none}.fold[open] summary .chev{transform:rotate(180deg)}.fold .chev{font-size:22px;transition:transform .15s}.foldbody{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .stat{background:var(--raised);border-radius:10px;padding:10px 12px}
@@ -380,7 +392,7 @@ function migrate(){
    ============================================================ */
 const LS_KEY="repledger.v1";
 const LB_PER_KG=2.20462;
-let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[]};
+let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[],shop:null};
 let V={tab:"train",view:"home",group:null,exId:null,opts:{},editIdx:null,idx:null,q:"",detailId:null,progKey:null,metric:"top",saved:null,confirmDel:false};
 const Cloud={db:null,profile:null,workouts:null,draft:null,status:"local",chains:{},timers:{}};
 
@@ -397,7 +409,7 @@ function queueWrite(key,ref,fn){
   });
 }
 function debounced(key,ms,fn){clearTimeout(Cloud.timers[key]);Cloud.timers[key]=setTimeout(fn,ms);}
-function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
+function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,shop:S.shop,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
 function saveProfile(){
   S.profileAt=Date.now();saveLocal();
   if(Cloud.profile)debounced("profile",1200,()=>queueWrite("profile",Cloud.profile,r=>r.set(profileBody())));
@@ -437,7 +449,7 @@ async function initCloud(){
     const pd=p.exists?p.data():null;
     if(pd){
       S.deleted=[...new Set([...(S.deleted||[]),...(pd.deleted||[])])];
-      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
+      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.shop)S.shop=JSON.parse(JSON.stringify(pd.shop));if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
     }
     // workouts: union, minus deleted
     const del=new Set(S.deleted);const map=new Map();
@@ -600,17 +612,19 @@ function repClass(en,r){const t=en.target;if(!t||r==null)return"";return r<t.lo?
 const ICONS={
   train:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>',
   food:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10M17 21V3c-2.2 1.5-3.5 4-3.5 7v3H17"/></svg>',
+  today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h11a2 2 0 0 1 2 2v15H7a2 2 0 0 1-2-2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
   history:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
   progress:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16l4.5-5 3.5 3 6-7"/><path d="M15 7h4v4"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>'
 };
 function renderNav(){
-  const tabs=[["train","Train"],["food","Food"],["history","History"],["progress","Progress"],["settings","Settings"]];
+  const tabs=[["train","Train"],["food","Food"],["today","Today"],["progress","Progress"],["settings","Settings"]];
   $("#nav").innerHTML=tabs.map(([id,l])=>`<button data-act="tab" data-v="${id}" ${V.tab===id?'aria-current="page"':""}>${ICONS[id]}${l}</button>`).join("");
 }
 function render(){
+  if(LOCKED){renderLock();return;}
   renderNav();
-  const views={food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
+  const views={today:vToday,food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
   $("#app").innerHTML=(views[V.view]||vHome)();
   T.key="";renderTimer();
 }
@@ -785,7 +799,7 @@ function vSaved(){
 }
 function workoutVolume(w){return w.entries.reduce((a,e)=>a+setsOf(e).reduce((b,s)=>b+(s.w||0)*s.r,0),0);}
 function vHistory(){
-  let h=header("History",S.workouts.length?`${S.workouts.length} workouts logged`:"");
+  let h=header("History",S.workouts.length?`${S.workouts.length} workouts logged`:"","toProgress");
   const list=S.workouts.slice().sort((a,b)=>b.date.localeCompare(a.date));
   if(!list.length)return h+`<div class="empty">No saved workouts yet. Finish a workout on the Train tab and it shows up here.</div>`;
   let month=null;
@@ -815,6 +829,7 @@ function allVariants(){
 }
 function vProgress(){
   let h=header("Progress","Each exercise version is tracked separately, so incline dumbbell press and flat Smith press each get their own chart.");
+  h+=`<button class="btn block" data-act="openHistory">Workout history (${S.workouts.length})</button>`;
   h+=weeklyVolume()+bodyweightCard();
   const vs=allVariants();
   if(!vs.length)return h+`<div class="empty">Log a workout and your lifts will appear here with charts.</div>`;
@@ -902,6 +917,8 @@ function vSettings(){
   h+=`<div class="card"><div class="lbl">Weight unit</div><div class="seg"><button data-act="unit" data-v="lb" aria-pressed="${unit()==="lb"}">Pounds (lb)</button><button data-act="unit" data-v="kg" aria-pressed="${unit()==="kg"}">Kilograms (kg)</button></div>
     <div class="kv"><div class="field"><label class="lbl" for="loIn">Default min reps</label><input type="number" inputmode="numeric" id="loIn" data-setting="lo" value="${S.settings.lo}"></div><div class="field"><label class="lbl" for="hiIn">Default max reps</label><input type="number" inputmode="numeric" id="hiIn" data-setting="hi" value="${S.settings.hi}"></div></div>
     <div class="field"><label class="lbl" for="restIn">Default rest timer (seconds)</label><input type="number" inputmode="numeric" id="restIn" data-setting="rest" value="${S.settings.rest}" min="0" step="15"></div></div>`;
+  h+=lockSettingsCard();
+  h+=`<div class="card"><h3>Open the app on</h3><div class="seg">${[["train","Train (workout days)"],["today","Today (daily hub)"]].map(([k2,l])=>`<button data-act="homeTab" data-v="${k2}" aria-pressed="${(S.settings.home||"train")===k2}">${l}</button>`).join("")}</div></div>`;
   h+=`<div class="card"><h3>Body goal</h3><div class="seg">${[["cut","Lose fat"],["maintain","Maintain"],["bulk","Gain size"]].map(([k,l])=>`<button data-act="goal" data-v="${k}" aria-pressed="${S.settings.goal===k}">${l}</button>`).join("")}</div>
     <div class="field"><label class="lbl" for="goalW">Goal weight (${unit()})</label><input type="number" inputmode="decimal" id="goalW" data-goalw="1" value="${S.settings.goalW?toDisp(S.settings.goalW):""}"></div>
     <div class="sub">Used for your bodyweight trend and daily protein target on the Progress tab.</div></div>`;
@@ -1475,6 +1492,177 @@ document.addEventListener("input",ev=>{
 document.addEventListener("keydown",ev=>{if(ev.key==="Enter"&&ev.target.id==="fq"&&window.REP_PWA&&(V.fq||"").trim().length>=2)onlineSearch(V.fq.trim());});
 
 /* ============================================================
+   TODAY HUB: daily summary, journal, shopping list
+   ============================================================ */
+const MOODS=[[1,"Rough"],[2,"Low"],[3,"OK"],[4,"Good"],[5,"Great"]];
+const PROMPTS=["What went well today?","What's one thing you'd do differently tomorrow?","How did your body feel in the gym?","Any cravings today? What triggered them?","What are you grateful for today?","What's on your mind that you want to get out of your head?","What's one small win from today?"];
+function vToday(){
+  const k=dayKey();const d=day(k);const g=fg();const t=totals(k);const a=actOf(k);
+  const doneW=S.workouts.filter(w=>dayKey(new Date(w.date))===k);const nx=nextRoutine();
+  const bw=(S.bw||[]).slice().sort((x,y)=>x.d.localeCompare(y.d));const lw=bw[bw.length-1];const wk=bw.filter(x=>x.d<=shiftDay(k,-7)).pop();
+  const tile=(act,v,label,sub,state)=>`<button class="tile ${state||""}" data-act="${act}"><span class="v num">${v}</span><span class="k">${label}</span>${sub?`<span class="k">${sub}</span>`:""}</button>`;
+  let h=`<div class="top"><div class="grow"><h1>${new Date().toLocaleDateString([], {weekday:"long"})}</h1><div class="sub">${new Date().toLocaleDateString([], {month:"long",day:"numeric",year:"numeric"})}</div></div>${statusHTML()}</div>`;
+  h+=`<div class="tiles">`+
+    tile("t_goTrain",doneW.length?"Done":S.draft?"Going":(nx?esc(nx.name.split(" · ")[0]):"–"),"Workout",doneW.length?esc(doneW[0].title||""):S.draft?"In progress":"Up next",doneW.length?"good":"")+
+    tile("t_goFood",r1(Math.max(0,g.net-t.net))+" g","Net carbs left",`${r1(t.net)} of ${g.net} used`,t.net>g.net?"bad":t.net>=g.net*0.75?"warn":"good")+
+    tile("t_goFood",a?a.steps.toLocaleString():"–","Steps",a?`${r1(a.mi)} mi · ${a.kcal} cal`:"Sync on Food tab",a&&a.steps>=(g.steps||8000)?"good":"")+
+    tile("t_goFood",Math.round(t.p)+" g","Protein",`goal ${g.p} g`,t.p>=g.p*0.9?"good":"")+
+    tile("t_goFood",(d.water||0)+" oz","Water",`goal ${g.water} oz`,(d.water||0)>=g.water?"good":"")+
+    tile("t_goFood",lw?r1(lw.w):"–","Weight (lb)",lw&&wk?`${lw.w-wk.w<=0?"−":"+"}${r1(Math.abs(lw.w-wk.w))} this week`:lw?fmtDate(lw.d+"T12:00:00",{month:"short",day:"numeric"}):"Log on Food tab",lw&&wk&&lw.w<wk.w?"good":"")+
+  `</div>`;
+  h+=journalCard(k)+shopCard()+pastJournal();
+  return h;
+}
+function journalCard(k){
+  const j=day(k).journal||{};const n=Math.floor(Date.now()/864e5);
+  return `<div class="card"><div class="top"><div class="grow"><h3>Journal</h3><div class="sub">${esc(PROMPTS[n%PROMPTS.length])}</div></div><span class="sub" id="jSaved">${j.updatedAt?"Saved":""}</span></div>
+   <div class="q"><label>Mood</label><div class="chips">${MOODS.map(([v,l])=>`<button class="chip" data-act="t_mood" data-v="${v}" aria-pressed="${j.mood===v}">${l}</button>`).join("")}</div></div>
+   <div class="q"><label>Energy</label><div class="chips">${MOODS.map(([v,l])=>`<button class="chip" data-act="t_energy" data-v="${v}" aria-pressed="${j.energy===v}">${["Drained","Low","OK","Good","High"][v-1]}</button>`).join("")}</div></div>
+   <textarea id="jText" placeholder="Write anything: how you feel, what you ate, what's on your mind…" style="min-height:140px">${esc(j.text||"")}</textarea></div>`;
+}
+function pastJournal(){
+  const ks=Object.keys(S.days||{}).filter(k=>k<dayKey()&&S.days[k].journal&&(S.days[k].journal.text||S.days[k].journal.mood)).sort().reverse();
+  if(!ks.length)return"";
+  const q=(V.jq||"").toLowerCase();const list=ks.filter(k=>!q||(S.days[k].journal.text||"").toLowerCase().includes(q));
+  return `<details class="fold" id="jFold" ${V.jOpen||q?"open":""}><summary>Past entries (${ks.length})<span class="chev">⌄</span></summary><div class="foldbody">
+    <input type="search" id="jq" placeholder="Search your journal" value="${esc(V.jq||"")}" aria-label="Search journal">
+    ${list.slice(0,60).map(k=>{const j=S.days[k].journal;const m=MOODS.find(x=>x[0]===j.mood);
+      return `<div class="jentry"><div class="top"><b>${fmtDate(k+"T12:00:00",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</b>${m?`<span class="pill">${m[1]}</span>`:""}</div>${j.text?`<div class="jtext">${esc(j.text)}</div>`:""}</div>`;}).join("")||`<div class="empty">No entries match.</div>`}
+  </div></details>`;
+}
+/* ---------- shopping list (two-way with a shared Apple Note via Shortcuts) ---------- */
+function shop(){if(!S.shop)S.shop={items:[],note:[],updatedAt:0};return S.shop;}
+function saveShop(){shop().updatedAt=Date.now();saveProfile();}
+function shopCard(){
+  const sh=shop();const items=sh.items;const open=items.filter(i=>!i.done),done=items.filter(i=>i.done);
+  const have=new Set(items.map(i=>i.text.toLowerCase()));
+  const sugg=[...new Set((S.recentFoods||[]).map(f=>f.brand?`${f.name} (${f.brand})`:f.name))].filter(x=>!have.has(x.toLowerCase())).slice(0,8);
+  const pending=items.filter(i=>i.src==="app"&&!i.sent&&!i.done).length;
+  const row=i=>`<div class="srow ${i.done?"done":""}"><button class="tick sm" data-act="t_shopTick" data-v="${i.id}" aria-pressed="${!!i.done}" aria-label="Got ${esc(i.text)}">✓</button><span class="grow">${esc(i.text)}${i.src==="app"&&!i.sent?` <span class="pill" style="font-size:10px">new</span>`:""}</span><button class="x" data-act="t_shopDel" data-v="${i.id}" aria-label="Remove ${esc(i.text)}">✕</button></div>`;
+  return `<div class="card"><div class="top"><div class="grow"><h3>Shopping list</h3><div class="sub">${open.length} to get${sh.lastNote?` · synced with Notes ${new Date(sh.lastNote).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}`:""}</div></div></div>
+   <div class="btns"><input type="text" id="shopIn" placeholder="Add an item" style="flex:2" enterkeyhint="done"><button class="btn primary" data-act="t_shopAdd">Add</button></div>
+   ${sugg.length?`<div class="chips">${sugg.map(s=>`<button class="chip" data-act="t_shopSug" data-v="${esc(s)}" style="padding:6px 10px;font-size:13px">+ ${esc(s)}</button>`).join("")}</div>`:""}
+   <div class="slist">${open.map(row).join("")||`<div class="sub">Nothing on the list.</div>`}${done.length?`<div class="sub" style="margin-top:6px">In the cart</div>${done.map(row).join("")}`:""}</div>
+   <div class="btns"><button class="btn" data-act="t_notesIn">Sync from Notes</button><button class="btn" data-act="t_notesOut">${pending?`Send ${pending} new to Notes`:"Copy list"}</button>${done.length?`<button class="btn ghost" data-act="t_shopClear">Clear checked</button>`:""}</div></div>`;
+}
+function cleanItem(line){return line.replace(/^\s*(?:[-*•◦▪︎·]|\[[ xX✓]?\]|[☐☑✅✔︎✓]|\d+[.)])\s*/,"").replace(/\s+/g," ").trim();}
+function parseNote(txt){
+  let lines=String(txt||"").split(/\r?\n/).map(l=>({raw:l,t:cleanItem(l)})).filter(l=>l.t);
+  if(lines.length>1&&/shopping|grocer|list/i.test(lines[0].t)&&lines[0].t.length<40)lines=lines.slice(1);
+  return lines.map(l=>({text:l.t,done:/^\s*(?:\[[xX✓]\]|[☑✅✔︎✓]|-\s*\[[xX]\])/.test(l.raw)}));
+}
+function importNote(txt){
+  const parsed=parseNote(txt);if(!parsed.length)return 0;const sh=shop();
+  const keepApp=sh.items.filter(i=>i.src==="app"&&!i.sent&&!parsed.some(p=>p.text.toLowerCase()===i.text.toLowerCase()));
+  const prevDone=new Set(sh.items.filter(i=>i.done).map(i=>i.text.toLowerCase()));
+  sh.items=[...parsed.map(p=>({id:uidGen(),text:p.text,done:p.done||prevDone.has(p.text.toLowerCase()),src:"note"})),...keepApp];
+  sh.note=parsed.map(p=>p.text);sh.lastNote=Date.now();saveShop();return parsed.length;
+}
+function notesSheet(){
+  sheet(`<h2>Sync from Apple Notes</h2><div class="sub">Run your <b>Shopping list to Rep Ledger</b> Shortcut, then tap Paste &amp; sync. The note stays the master list, so edits from anyone you share it with come through. Items you added here that aren't in the note yet are kept.</div>
+   <button class="btn primary block big" data-act="t_notesPaste">Paste &amp; sync</button>
+   <div class="field"><label class="lbl" for="nTxt">Or paste the note's text here</label><textarea id="nTxt" placeholder="Shopping List&#10;Ground beef 80/20&#10;Eggs&#10;Avocados"></textarea></div>
+   <button class="btn block" data-act="t_notesImport">Sync pasted text</button>
+   <details class="fold"><summary>Set up the two Shortcuts (one time)<span class="chev">⌄</span></summary><div class="foldbody sub">
+    <div><b>Notes → Rep Ledger</b> (name it <b>Shopping list to Rep Ledger</b>):</div>
+    <div>1. <b>Find Notes</b> where <b>Name</b> is your note's title (e.g. "Shopping List"), Limit 1.</div>
+    <div>2. <b>Get Details of Notes</b> → <b>Body</b>.</div>
+    <div>3. <b>Copy to Clipboard</b>. Run it, open Rep Ledger, tap Sync from Notes → Paste &amp; sync.</div>
+    <div style="margin-top:8px"><b>Rep Ledger → Notes</b> (name it <b>Add to shopping list</b>):</div>
+    <div>1. <b>Get Clipboard</b>.</div>
+    <div>2. <b>Find Notes</b> where Name is your note's title, Limit 1.</div>
+    <div>3. <b>Append to Note</b>: append the Clipboard to the found note.</div>
+    <div>In Rep Ledger tap <b>Send new to Notes</b> (it copies only items the note doesn't have yet), then run this Shortcut. Everyone sharing the note sees them.</div>
+    <div style="margin-top:8px">Tip: add both Shortcuts to your Home Screen or the Share Sheet for one-tap use.</div>
+   </div></details>
+   <button class="btn" data-act="closeSheetBtn">Close</button>`);
+}
+let jTimer=null;
+function saveJournal(patch){const k=dayKey();const d=day(k,true);d.journal={...(d.journal||{}),...patch,updatedAt:Date.now()};saveDay(k);const s=document.getElementById("jSaved");if(s)s.textContent="Saved";}
+document.addEventListener("click",async ev=>{
+  const b=ev.target.closest("[data-act^='t_']");if(!b)return;const a=b.dataset.act,v=b.dataset.v;
+  switch(a){
+    case"t_goTrain":V.tab="train";go("home");break;
+    case"t_goFood":V.tab="food";V.fday=null;go("food");break;
+    case"t_mood":saveJournal({mood:+v});render();break;
+    case"t_energy":saveJournal({energy:+v});render();break;
+    case"t_shopAdd":{const i=$("#shopIn");const t=cleanItem(i.value);if(!t)break;shop().items.unshift({id:uidGen(),text:t,done:false,src:"app"});saveShop();render();$("#shopIn")?.focus();break;}
+    case"t_shopSug":shop().items.unshift({id:uidGen(),text:v,done:false,src:"app"});saveShop();render();break;
+    case"t_shopTick":{const it=shop().items.find(i=>i.id===v);if(it){it.done=!it.done;saveShop();render();}break;}
+    case"t_shopDel":shop().items=shop().items.filter(i=>i.id!==v);saveShop();render();break;
+    case"t_shopClear":shop().items=shop().items.filter(i=>!i.done);saveShop();render();break;
+    case"t_notesIn":notesSheet();break;
+    case"t_notesImport":{const n=importNote($("#nTxt").value);if(!n){toast("No items found in that text");break;}closeSheet();toast(`Synced ${n} items from Notes`);render();break;}
+    case"t_notesPaste":try{const t=await navigator.clipboard.readText();const n=importNote(t);if(!n){toast("Clipboard has no list. Run the Shortcut first.");break;}closeSheet();toast(`Synced ${n} items from Notes`);render();}catch(e){toast("Couldn't read the clipboard here. Long-press the box and tap Paste.");$("#nTxt")?.focus();}break;
+    case"t_notesOut":{const sh=shop();const pend=sh.items.filter(i=>i.src==="app"&&!i.sent&&!i.done);const list=pend.length?pend:sh.items.filter(i=>!i.done);
+      const txt=list.map(i=>i.text).join("\n");if(!txt){toast("Nothing to copy");break;}
+      try{await navigator.clipboard.writeText(txt);if(pend.length){pend.forEach(i=>i.sent=true);saveShop();render();toast(`Copied ${pend.length} new item${pend.length===1?"":"s"}. Now run "Add to shopping list".`);}else toast("List copied. Paste it into your note.");}
+      catch(e){sheet(`<h2>Copy these items</h2><textarea style="min-height:200px" readonly>${esc(txt)}</textarea><button class="btn" data-act="closeSheetBtn">Close</button>`);}break;}
+  }
+});
+document.addEventListener("input",ev=>{const t=ev.target;
+  if(t.id==="jText"){const s=document.getElementById("jSaved");if(s)s.textContent="Saving…";clearTimeout(jTimer);const val=t.value;jTimer=setTimeout(()=>saveJournal({text:val}),700);}
+  if(t.id==="jq"){V.jq=t.value;const pos=t.selectionStart;render();const q=$("#jq");if(q){q.focus();try{q.setSelectionRange(pos,pos);}catch(e){}}}
+});
+document.addEventListener("keydown",ev=>{if(ev.key==="Enter"&&ev.target.id==="shopIn"){ev.preventDefault();document.querySelector("[data-act=t_shopAdd]")?.click();}});
+document.addEventListener("toggle",ev=>{if(ev.target.id==="jFold")V.jOpen=ev.target.open;},true);
+
+/* ============================================================
+   FACE ID LOCK (installed app): passkey with user verification
+   ============================================================ */
+let LOCKED=false,hiddenAt=0;
+const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const unb64=s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((s.length+3)%4)),c=>c.charCodeAt(0));
+const rand=n=>crypto.getRandomValues(new Uint8Array(n));
+async function sha(s){return b64(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)));}
+function lockSupported(){return !!(window.REP_PWA&&window.PublicKeyCredential&&window.isSecureContext&&navigator.credentials);}
+function lockOn(){return !!(S.settings.lock&&S.settings.lock.cred);}
+async function faceAuth(){
+  const c=await navigator.credentials.get({publicKey:{challenge:rand(32),allowCredentials:[{type:"public-key",id:unb64(S.settings.lock.cred)}],userVerification:"required",timeout:60000}});
+  return !!c;
+}
+async function setupLock(){
+  try{
+    if(!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())){toast("Face ID / Touch ID isn't set up on this device.");return;}
+    const c=await navigator.credentials.create({publicKey:{challenge:rand(32),rp:{name:"Rep Ledger",id:location.hostname},user:{id:rand(16),name:"Rep Ledger lock",displayName:"Rep Ledger"},
+      pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required",residentKey:"preferred"},timeout:60000}});
+    if(!c)return;
+    const code=Array.from(rand(9)).map(x=>"ABCDEFGHJKMNPQRSTUVWXYZ23456789"[x%31]).join("").replace(/(.{3})(?=.)/g,"$1-");
+    S.settings.lock={cred:b64(c.rawId),rc:await sha(code),at:Date.now()};saveProfile();
+    sheet(`<h2>Face ID lock is on</h2><div class="sub">Write this recovery code down or save it in your Passwords app. It's the only way back in if Face ID ever stops working for this app. It won't be shown again.</div>
+      <div class="rcode num">${code}</div><button class="btn" data-act="lk_copy" data-v="${code}">Copy code</button><button class="btn primary" data-act="closeSheetBtn">I saved it</button>`);
+    render();
+  }catch(e){toast("Face ID setup was cancelled.");}
+}
+function renderLock(){
+  $("#nav").innerHTML="";$("#timerSlot").innerHTML="";
+  $("#app").innerHTML=`<div class="lockscr"><svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+    <h1>Rep Ledger is locked</h1><div class="sub">Your workouts, food log and journal are private.</div>
+    <button class="btn primary block big" data-act="lk_unlock">Unlock with Face ID</button>
+    <details class="fold" style="width:100%"><summary style="font-size:16px">Can't use Face ID?<span class="chev">⌄</span></summary><div class="foldbody">
+      <div class="sub">If Face ID fails, iPhone offers your passcode in the same prompt. If that doesn't work, enter your recovery code.</div>
+      <input type="text" id="rcIn" placeholder="XXX-XXX-XXX" autocapitalize="characters" autocomplete="off"><button class="btn block" data-act="lk_code">Unlock with recovery code</button></div></details></div>`;
+}
+async function tryUnlock(){try{if(await faceAuth()){LOCKED=false;render();}}catch(e){toast("Face ID didn't unlock. Try again.");}}
+document.addEventListener("click",async ev=>{
+  const b=ev.target.closest("[data-act^='lk_']");if(!b)return;const a=b.dataset.act;
+  if(a==="lk_unlock")tryUnlock();
+  if(a==="lk_code"){const v=($("#rcIn").value||"").toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/(.{3})(?=.)/g,"$1-");if(S.settings.lock&&(await sha(v))===S.settings.lock.rc){LOCKED=false;S.settings.lock=null;saveProfile();render();toast("Unlocked. Face ID lock was turned off. Turn it on again in Settings.");}else toast("That recovery code doesn't match.");}
+  if(a==="lk_setup")setupLock();
+  if(a==="lk_off"){try{if(await faceAuth()){S.settings.lock=null;saveProfile();render();toast("Face ID lock turned off");}}catch(e){toast("Face ID didn't confirm, so the lock stays on.");}}
+  if(a==="lk_copy"){try{await navigator.clipboard.writeText(b.dataset.v);toast("Recovery code copied");}catch(e){}}
+});
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden"){hiddenAt=Date.now();if(lockOn())document.body.classList.add("privacy");}
+  else{document.body.classList.remove("privacy");if(lockOn()&&!LOCKED&&Date.now()-hiddenAt>(S.settings.lockAfter??60)*1000){LOCKED=true;closeSheet();render();}}
+});
+function lockSettingsCard(){
+  if(!lockSupported())return `<div class="card"><h3>Face ID lock</h3><div class="sub">Available in the installed app (Home Screen icon). It uses Face ID to keep your journal and logs private.</div></div>`;
+  return `<div class="card"><h3>Face ID lock</h3><div class="sub">${lockOn()?"On. The app locks when you open it and after you leave it for a minute or more.":"Require Face ID to open the app, so your journal and logs stay private if someone picks up your phone."}</div>
+    ${lockOn()?`<div class="seg">${[[0,"Immediately"],[60,"After 1 min"],[300,"After 5 min"]].map(([v,l])=>`<button data-act="lockAfter" data-v="${v}" aria-pressed="${(S.settings.lockAfter??60)===v}">${l}</button>`).join("")}</div><button class="btn danger" data-act="lk_off">Turn off Face ID lock</button>`:`<button class="btn primary" data-act="lk_setup">Turn on Face ID lock</button>`}</div>`;
+}
+
+/* ============================================================
    REST TIMER
    ============================================================ */
 let T={end:0,iv:null,next:null,beeped:false,key:""};
@@ -1569,10 +1757,14 @@ document.addEventListener("click",async ev=>{
   const a=b.dataset.act,v=b.dataset.v;
   if(a==="closeSheet"&&ev.target!==b)return;
   switch(a){
-    case"tab":V.tab=v;V.confirmDel=false;go({train:"home",food:"food",history:"history",progress:"progress",settings:"settings"}[v]);break;
+    case"tab":V.tab=v;V.confirmDel=false;go({train:"home",food:"food",today:"today",history:"history",progress:"progress",settings:"settings"}[v]);break;
     case"home":V.tab="train";go("home");break;
+    case"openHistory":V.tab="progress";go("history");break;
+    case"toProgress":V.tab="progress";go("progress");break;
+    case"lockAfter":S.settings.lockAfter=+v;saveProfile();render();break;
+    case"homeTab":S.settings.home=v;saveProfile();render();break;
     case"tabHistory":V.confirmDel=false;go("history");break;
-    case"tabProgress":go(V.tab==="history"?"detail":"progress");break;
+    case"tabProgress":go(V.fromDetail?"detail":"progress");break;
     case"group":go("group",{group:v});break;
     case"selR":{
       if(!S.draft){V.selR=v;render();break;}
@@ -1632,7 +1824,7 @@ document.addEventListener("click",async ev=>{
     case"askDel":V.confirmDel=true;render();break;
     case"cancelDel":V.confirmDel=false;render();break;
     case"delW":deleteWorkout(V.detailId);V.confirmDel=false;toast("Workout deleted");go("history");break;
-    case"prog":go("progDetail",{progKey:v});break;
+    case"prog":go("progDetail",{progKey:v,fromDetail:V.view==="detail"});break;
     case"metric":V.metric=v;render();break;
     case"logBw":{const w=fromDisp($("#bwIn").value);if(!w){toast("Enter your weight first");break;}const d=dayKey();
       S.bw=(S.bw||[]).filter(x=>x.d!==d);S.bw.push({d,w:Math.round(w*10)/10});saveProfile();toast("Weight logged");render();break;}
@@ -1689,6 +1881,8 @@ loadLocal();
 if(migrate())saveProfile();
 function dropStaleDraft(){if(S.draft&&!S.draft.entries.some(e=>setsOf(e).length)&&Date.now()-new Date(S.draft.start)>12*3600e3){S.draft=null;saveDraft();return true;}return false;}
 dropStaleDraft();
+if(lockOn()&&lockSupported())LOCKED=true;
+if(S.settings.home==="today"){V.tab="today";V.view="today";}
 if(S.draft&&S.draft.rest&&S.draft.rest.end>Date.now()-300000){T.end=S.draft.rest.end;T.next=S.draft.rest.next;T.beeped=T.end<Date.now();}
 render();ensureTicker();
 initCloud();
@@ -1696,7 +1890,6 @@ initCloud();
   if(window.claude&&window.claude.use){const dl=await window.claude.use("downloads");if(dl){Cloud.dl=dl;if(V.view==="settings")render();}}}catch(e){}})();
 </script>
 <script>
-window.REP_PWA=true;
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
 if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(()=>{});}
 </script>
