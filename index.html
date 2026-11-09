@@ -285,8 +285,9 @@ const UL=[
   ["pulldown",{equip:"machine",grip:"neutral"},3,8,12,120,"Neutral grip is easiest on the shoulders. Pull elbows down to your sides."],
   ["bench",{equip:"db",angle:"incline"},3,8,12,120,"Low incline (about 30°). Dumbbells let your shoulders move naturally."],
   ["row",{equip:"machine",grip:"neutral"},3,8,12,120,"Squeeze shoulder blades together and pause for a second."],
-  ["pushdown",{equip:"cable",attach:"rope"},3,10,15,60],
-  ["curl",{equip:"bar"},3,8,12,60]]},
+  ["lateral",{equip:"cable"},3,12,15,60,"One arm at a time, cable at hand height. Keeps tension on the side delt the whole way up.",{p2:true}],
+  ["pushdown",{equip:"cable",attach:"rope"},3,10,15,60,"",{add:1}],
+  ["curl",{equip:"bar"},3,8,12,60,"",{add:1}]]},
  {id:"ul_loA",name:"Lower A · Quads",items:[
   ["squat",{equip:"smith",style:"back"},3,6,10,180,"Feet slightly in front of the bar. Go as deep as you can with a flat back."],
   ["legpress",{equip:"machine",feet:"std"},3,10,15,120],
@@ -301,8 +302,8 @@ const UL=[
   ["chestpress",{type:"seated"},3,8,12,90],
   ["lateral",{equip:"db"},4,12,15,60,"Raise to shoulder height only, thumbs level or slightly up."],
   ["reardelt",{equip:"machine"},2,12,15,60],
-  ["curl",{equip:"db",style:"incline"},3,10,12,60],
-  ["ohext",{equip:"cable"},3,10,15,60,"If overhead bothers your shoulders, switch to Equipment: Triceps Extension machine."]]},
+  ["curl",{equip:"db",style:"incline"},3,10,12,60,"",{add:1}],
+  ["ohext",{equip:"cable"},3,10,15,60,"If overhead bothers your shoulders, switch to Equipment: Triceps Extension machine.",{add:1}]]},
  {id:"ul_loB",name:"Lower B · Hamstrings & Glutes",items:[
   ["rdl",{equip:"bb"},3,8,10,150,"Push hips back, slight knee bend, bar close to your legs. Stop when your hamstrings are fully stretched."],
   ["hipthrust",{equip:"smith"},3,8,12,120],
@@ -348,12 +349,23 @@ const PROGRAMS=[
  {id:"ul",name:"Upper / Lower: size on a cut",desc:"4 days. Every muscle trained twice a week, which beats once a week for growth. Shoulder-friendly exercise picks. Recommended for you.",days:UL},
  {id:"split",name:"Your 4-day split",desc:"Chest & Back, Biceps & Triceps, Legs, Delts. Each muscle once a week with more sets per session.",days:SPLIT}];
 function defaultRoutines(pid){const P=PROGRAMS.find(x=>x.id===(pid||S.settings.program))||PROGRAMS[0];
-  return P.days.map(r=>({id:r.id,name:r.name,items:r.items.map(([exId,opts,sets,lo,hi,rest,tip])=>({exId,opts,sets,lo,hi,rest,tip:tip||""}))}));}
+  return P.days.map(r=>({id:r.id,name:r.name,items:r.items.map(([exId,opts,sets,lo,hi,rest,tip,x])=>({exId,opts,sets,lo,hi,rest,tip:tip||"",add:(x&&x.add)||0,p2:!!(x&&x.p2)}))}));}
+function migrate3(){
+  if(S.settings.v3)return false;S.settings.v3=true;
+  if(S.settings.program!=="ul"||!S.routines)return true;
+  const same=(it,exId,opts)=>it.exId===exId&&JSON.stringify(it.opts)===JSON.stringify(opts);
+  UL.forEach(d=>{const r=S.routines.find(x=>x.id===d.id);if(!r)return;
+    d.items.forEach((t,k)=>{const x=t[7];if(!x)return;const it=r.items.find(i=>same(i,t[0],t[1]));
+      if(it){if(x.add)it.add=x.add;if(x.p2)it.p2=true;}
+      else if(x.p2){const at=Math.min(k,r.items.length);r.items.splice(at,0,{exId:t[0],opts:t[1],sets:t[2],lo:t[3],hi:t[4],rest:t[5],tip:t[6]||"",add:0,p2:true});}});});
+  return true;
+}
 function migrate(){
-  if(S.settings.program)return false;
+  const m3=()=>migrate3();
+  if(S.settings.program)return m3();
   const wasDefault=!S.routines||JSON.stringify(S.routines.map(r=>({id:r.id,items:r.items.map(i=>[i.exId,i.opts,i.sets,i.lo,i.hi,i.rest])})))===JSON.stringify(SPLIT.map(r=>({id:r.id,items:r.items.map(i=>i.slice(0,6))})));
   if(wasDefault){S.settings.program="ul";S.routines=defaultRoutines("ul");}else S.settings.program="split";
-  return true;
+  m3();return true;
 }
 
 /* ============================================================
@@ -361,7 +373,7 @@ function migrate(){
    ============================================================ */
 const LS_KEY="repledger.v1";
 const LB_PER_KG=2.20462;
-let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[]};
+let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[]};
 let V={tab:"train",view:"home",group:null,exId:null,opts:{},editIdx:null,idx:null,q:"",detailId:null,progKey:null,metric:"top",saved:null,confirmDel:false};
 const Cloud={db:null,profile:null,workouts:null,draft:null,status:"local",chains:{},timers:{}};
 
@@ -479,7 +491,7 @@ function sessionsFor(vk,excludeId){
       if(en.vk!==vk)return;const sets=setsOf(en);if(!sets.length)return;
       const ws=sets.map(s=>s.w||0);
       const top=Math.max(...ws);const topSet=sets.find(s=>(s.w||0)===top);
-      out.push({date:w.date,wid:w.id,sets,top,topReps:topSet.r,minW:Math.min(...ws),e1rm:Math.max(...sets.map(s=>e1rm(s.w,s.r))),vol:sets.reduce((a,s)=>a+(s.w||0)*s.r,0),maxReps:Math.max(...sets.map(s=>s.r))});
+      out.push({deload:!!(en.target&&en.target.deload),date:w.date,wid:w.id,sets,top,topReps:topSet.r,minW:Math.min(...ws),e1rm:Math.max(...sets.map(s=>e1rm(s.w,s.r))),vol:sets.reduce((a,s)=>a+(s.w||0)*s.r,0),maxReps:Math.max(...sets.map(s=>s.r))});
     });
   });
   return out;
@@ -519,11 +531,17 @@ function addEntry(exId,opts,target){
   S.lastOpts[exId]=opts;saveProfile();saveDraft();
   return S.draft.entries.length-1;
 }
+function phase(){return (S.settings.rampLeft||0)>0?"ramp":(S.settings.deloadLeft||0)>0?"deload":"normal";}
+function effSets(it,ph){ph=ph||phase();const full=it.sets+(it.add||0);
+  if(ph==="ramp")return it.p2?0:Math.max(2,it.sets-1);
+  if(ph==="deload")return Math.max(1,Math.ceil(full/2));
+  return full;}
+function deloadDue(){return phase()==="normal"&&S.settings.deloadEvery>0&&(S.settings.sinceDeload||0)>=S.settings.deloadEvery*4+(S.settings.deloadSnooze||0);}
 function startRoutine(rid){
   const r=routines().find(x=>x.id===rid);if(!r)return;
   S.draft={id:uidGen(),start:new Date().toISOString(),routineId:r.id,routineName:r.name,entries:[]};
-  const ramp=(S.settings.rampLeft||0)>0;S.draft.ramp=ramp;
-  r.items.forEach(it=>{if(exById(it.exId))S.draft.entries.push(makeEntry(it.exId,it.opts,{sets:ramp?Math.max(2,it.sets-1):it.sets,lo:it.lo,hi:it.hi,rest:it.rest,tip:it.tip||"",ramp}));});
+  const ph=phase();const ramp=ph==="ramp",deload=ph==="deload";S.draft.ramp=ramp;S.draft.deload=deload;
+  r.items.forEach(it=>{const n=effSets(it,ph);if(n&&exById(it.exId))S.draft.entries.push(makeEntry(it.exId,it.opts,{sets:n,lo:it.lo,hi:it.hi,rest:it.rest,tip:it.tip||"",ramp,deload}));});
   saveDraft();
 }
 function nextRoutine(){
@@ -536,10 +554,11 @@ function incLb(ex){const big=BIG_LOWER.includes(ex.id);return unit()==="kg"?(big
 /* Double progression coach: stay at a weight until every working set reaches the top of the rep range, then go up. */
 function coach(en){
   const ex=exById(en.exId);const f=flags(ex,en.opts);const t=en.target||{sets:3,lo:S.settings.lo,hi:S.settings.hi};
-  const prev=sessionsFor(en.vk);const last=prev[prev.length-1];
+  const prevAll=sessionsFor(en.vk);const prev=prevAll.filter(p=>!p.deload);const last=prev[prev.length-1]||prevAll[prevAll.length-1];
   const range=`${t.lo}–${t.hi}${f.time?" sec":" reps"}`;
   if(!last)return{w:null,r:t.lo,state:"new",msg:t.ramp&&!f.time?`Ramp-up: pick a weight where you can hit ${t.lo}–${t.hi} reps and still have 2–3 more in the tank. Start light; your strength will come back fast.`:f.time?`First time: hold as long as you can with good form.`:`First time: pick a weight you can lift for ${range} while stopping 1–2 reps short of failure.`};
   const reps=last.sets.map(s=>s.r);const lastTxt=setsSummary(last.sets,f);
+  if(t.deload){const w=f.assist?last.minW:(last.top||null);return{w,r:t.lo,state:"deload",msg:`Recovery week: ${w?"use "+fmtW(w)+" (same as last time), ":""}do half the usual sets and stop 3–4 reps short of failure. Your muscles recover and you come back stronger next week.`};}
   if(f.time||(f.bw&&!last.top)){
     const hit=reps.every(r=>r>=t.hi);
     return{w:null,r:hit?t.hi:Math.max(...reps),state:hit?"up":"hold",msg:hit?`You hit ${t.hi}+ on every set last time (${lastTxt}). Make it harder: add weight, slow down the lowering, or pause at the hardest point.`:`Last time: ${lastTxt}. Try to add a rep to each set.`};
@@ -613,11 +632,13 @@ function vHome(){
       const last=S.workouts.filter(w=>w.routineId===sel.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
       h+=`<div class="card hot"><div class="top"><div class="grow"><h2>${esc(sel.name)}</h2><div class="sub num">${sel.id===nx.id?"Next in your rotation":"You picked a different day. The rotation continues from whichever day you do."} · ${last?"last done "+fmtDate(last.date):"not done yet"}</div></div></div>
         <button class="btn primary block" data-act="startR" data-v="${sel.id}">Start ${esc(sel.name.split(" · ")[0])}</button>
-        <div class="list">${sel.items.map(i=>{const ex=exById(i.exId);if(!ex)return"";const vl=variantLabel(ex,i.opts);const sets=S.settings.rampLeft>0?Math.max(2,i.sets-1):i.sets;
+        <div class="list">${sel.items.map(i=>{const ex=exById(i.exId);if(!ex)return"";const vl=variantLabel(ex,i.opts);const sets=effSets(i);if(!sets)return"";
           return `<div class="row"><div class="grow"><span class="t">${esc(ex.n)}</span>${vl?`<span class="s">${esc(vl)}</span>`:""}</div><span class="pill num">${sets} × ${i.lo}–${i.hi}</span></div>`;}).join("")}</div>
         <button class="btn ghost block" data-act="routine" data-v="${sel.id}">Edit this day</button></div>`;
       const P=PROGRAMS.find(x=>x.id===S.settings.program);
-      if(S.settings.rampLeft>0)h+=`<div class="note"><b>Ramp-up: ${S.settings.rampLeft} workout${S.settings.rampLeft===1?"":"s"} left.</b> Each exercise has one set fewer and you stop 2–3 reps short of failure while you get back into it.</div>`;
+      if(S.settings.rampLeft>0)h+=`<div class="note"><b>Ramp-up: ${S.settings.rampLeft} workout${S.settings.rampLeft===1?"":"s"} left.</b> Each exercise has one set fewer and you stop 2–3 reps short of failure while you get back into it. After that, extra side-delt and arm sets switch on automatically.</div>`;
+      else if(S.settings.deloadLeft>0)h+=`<div class="note"><b>Recovery week: ${S.settings.deloadLeft} workout${S.settings.deloadLeft===1?"":"s"} left.</b> Half the sets, same weights, stop 3–4 reps short of failure.</div>`;
+      else if(deloadDue())h+=`<div class="card hot"><h3>Recovery week due</h3><div class="sub">You've done ${S.settings.sinceDeload} workouts since your last easy week. One lighter week (half the sets, same weights) lets joints and muscles catch up so you keep growing.</div><div class="btns"><button class="btn primary" data-act="deloadStart">Start recovery week</button><button class="btn" data-act="deloadSnooze">Remind me next week</button></div></div>`;
       h+=`<div class="top"><div class="sub grow">Program: ${P?esc(P.name):"Custom"}</div><button class="pill" data-act="programs">Change program</button></div>`;
     }
   }
@@ -648,7 +669,7 @@ function vRoutine(){
   let h=header(esc(r.name),"Edit sets and rep ranges, or add and remove exercises","home");
   h+=`<div class="field"><label class="lbl" for="rName">Workout name</label><input type="text" id="rName" data-rname="1" value="${esc(r.name)}"></div>`;
   h+=`<div class="list">`+r.items.map((it,i)=>{const ex=exById(it.exId)||{n:"Removed exercise"};
-    return `<div class="row" style="flex-wrap:wrap"><div class="grow"><span class="t">${i+1}. ${esc(ex.n)}</span><span class="s">${esc(ex.o?variantLabel(ex,it.opts):"")}</span></div>
+    return `<div class="row" style="flex-wrap:wrap"><div class="grow"><span class="t">${i+1}. ${esc(ex.n)}</span><span class="s">${esc(ex.o?variantLabel(ex,it.opts):"")}</span>${it.p2?`<span class="s" style="color:var(--accent)">Starts after ramp-up</span>`:it.add?`<span class="s" style="color:var(--accent)">+${it.add} set after ramp-up</span>`:""}</div>
       <button class="x" data-act="rUp" data-v="${i}" aria-label="Move up" ${i?"":"disabled"}>↑</button><button class="x" data-act="rRm" data-v="${i}" aria-label="Remove">✕</button>
       <div class="rgrid"><label>Sets<input type="number" inputmode="numeric" data-ri="${i}" data-rf="sets" value="${it.sets}"></label><label>Min reps<input type="number" inputmode="numeric" data-ri="${i}" data-rf="lo" value="${it.lo}"></label><label>Max reps<input type="number" inputmode="numeric" data-ri="${i}" data-rf="hi" value="${it.hi}"></label><label>Rest (s)<input type="number" inputmode="numeric" data-ri="${i}" data-rf="rest" value="${it.rest}"></label></div></div>`;}).join("")+`</div>`;
   h+=`<button class="btn block" data-act="rAdd">+ Add exercise</button>`;
@@ -704,7 +725,7 @@ function vLog(){
   if(vl||(ex.o&&ex.o.length))h+=`<div class="chips">${vl.split(" · ").filter(Boolean).map(t=>`<span class="pill">${esc(t)}</span>`).join("")}${(ex.o||[]).length?`<button class="pill" data-act="editOpts" style="border-style:dashed">Change</button>`:""}</div>`;
   const note=pfNote(ex,en.opts);if(note)h+=`<div class="note"><b>At the gym:</b> ${esc(note)}</div>`;
   const t=en.target;const c=coach(en);
-  h+=`<div class="card ${c.state==="up"?"hot":""} coach"><div class="sub">${t?`Target: <b class="num">${t.sets} sets × ${t.lo}–${t.hi} ${f.time?"sec":"reps"}</b> · rest ${t.rest||S.settings.rest}s`:""}</div>${t&&t.ramp?`<span class="pill pr" style="align-self:flex-start">Ramp-up: 1 set fewer, leave 2–3 reps in the tank</span>`:""}<b>${{up:"Time to go up",hold:"Beat last time",down:"Lighten the load",new:"Set your starting weight"}[c.state]}</b><div class="sub">${esc(c.msg)}</div>${t&&t.tip?`<div class="note">${esc(t.tip)}</div>`:""}</div>`;
+  h+=`<div class="card ${c.state==="up"?"hot":""} coach"><div class="sub">${t?`Target: <b class="num">${t.sets} set${t.sets===1?"":"s"} × ${t.lo}–${t.hi} ${f.time?"sec":"reps"}</b> · rest ${t.rest||S.settings.rest}s`:""}</div>${t&&t.ramp?`<span class="pill pr" style="align-self:flex-start">Ramp-up: 1 set fewer, leave 2–3 reps in the tank</span>`:""}<b>${{up:"Time to go up",hold:"Beat last time",down:"Lighten the load",new:"Set your starting weight",deload:"Recovery week"}[c.state]}</b><div class="sub">${esc(c.msg)}</div>${t&&t.tip?`<div class="note">${esc(t.tip)}</div>`:""}</div>`;
   if(last){
     const best=f.assist?Math.min(...prev.map(p=>p.minW)):Math.max(...prev.map(p=>p.top));
     h+=`<div class="kv"><div class="stat"><div class="v num">${f.time||f.bw&&!last.top?esc(last.maxReps+(f.time?"s":"")):esc(toDisp(last.top))}</div><div class="k">Last top ${f.time?"hold":f.bw&&!last.top?"reps":"set ("+unit()+")"} · ${fmtDate(last.date,{month:"short",day:"numeric"})}</div></div><div class="stat"><div class="v num">${f.time||f.bw&&!best?esc(Math.max(...prev.map(p=>p.maxReps))+(f.time?"s":"")):esc(toDisp(best))}</div><div class="k">${f.assist?"Least assist":"All-time best"}</div></div></div>`;
@@ -743,6 +764,8 @@ function vSaved(){
   let h=header("Workout saved",fmtDate(w.date,{weekday:"long",month:"long",day:"numeric"}));
   h+=`<div class="kv"><div class="stat"><div class="v num">${w.entries.length}</div><div class="k">Exercises</div></div><div class="stat"><div class="v num">${w.entries.reduce((a,e)=>a+setsOf(e).length,0)}</div><div class="k">Sets</div></div><div class="stat"><div class="v num">${w.duration||"–"}</div><div class="k">Minutes</div></div><div class="stat"><div class="v num">${prs.length}</div><div class="k">Personal records</div></div></div>`;
   if(prs.length)h+=`<div class="card hot"><h3>New records</h3>${prs.map(e=>`<div><b>${esc(e.name)}</b> <span class="pill pr">${esc(e.pr)}</span><div class="sub">${esc(e.variant)}</div></div>`).join("")}</div>`;
+  if(w.rampEnded)h+=`<div class="card hot"><h3>Ramp-up complete</h3><div class="sub">The full program starts with your next workout: 3 sets of cable lateral raises added to Upper A, and 1 extra set on every biceps and triceps exercise. Push most sets to 1–2 reps short of failure now.</div></div>`;
+  if(w.deloadEnded)h+=`<div class="card hot"><h3>Recovery week done</h3><div class="sub">Back to full sets next workout. Expect to feel strong.</div></div>`;
   const nx=nextRoutine();
   if(nx&&w.routineId)h+=`<div class="card"><div class="sub">Next time</div><h2>${esc(nx.name)}</h2><div class="sub">It'll be waiting at the top of the Train tab.</div></div>`;
   h+=`<button class="btn primary block" data-act="tab" data-v="train">Done</button><button class="btn block" data-act="tab" data-v="progress">See progress</button>`;
@@ -871,6 +894,11 @@ function vSettings(){
     <div class="field"><label class="lbl" for="goalW">Goal weight (${unit()})</label><input type="number" inputmode="decimal" id="goalW" data-goalw="1" value="${S.settings.goalW?toDisp(S.settings.goalW):""}"></div>
     <div class="sub">Used for your bodyweight trend and daily protein target on the Progress tab.</div></div>`;
   h+=`<div class="card"><h3>Ramp-up</h3><div class="sub">${S.settings.rampLeft>0?`${S.settings.rampLeft} program workouts left with one set fewer per exercise.`:"Off. Restart it after a layoff of 2+ weeks."}</div><button class="btn" data-act="${S.settings.rampLeft>0?"rampEnd":"rampStart"}">${S.settings.rampLeft>0?"End ramp-up now":"Restart ramp-up (8 workouts)"}</button></div>`;
+  {const st=S.settings;const left=Math.max(0,st.deloadEvery*4+(st.deloadSnooze||0)-(st.sinceDeload||0));
+  h+=`<div class="card"><h3>Recovery weeks</h3><div class="sub">Every few weeks, one lighter week (half the sets, same weights) so you recover and keep growing. The app reminds you when one is due.</div>
+    <div class="seg">${[[0,"Off"],[4,"Every 4 wks"],[6,"Every 6 wks"],[8,"Every 8 wks"]].map(([k,l])=>`<button data-act="deloadEvery" data-v="${k}" aria-pressed="${st.deloadEvery===k}">${l}</button>`).join("")}</div>
+    <div class="sub num">${st.deloadLeft>0?`Recovery week in progress: ${st.deloadLeft} workouts left.`:st.rampLeft>0?"Counting starts after ramp-up.":st.deloadEvery?`${st.sinceDeload||0} workouts since the last one. Next one due in about ${left} workouts.`:"Reminders are off."}</div>
+    ${st.deloadLeft>0?`<button class="btn" data-act="deloadStop">End recovery week now</button>`:st.rampLeft>0?"":`<button class="btn" data-act="deloadStart">Start a recovery week now</button>`}</div>`;}
   h+=`<div class="card"><h3>Custom exercises</h3>${S.custom.length?`<div class="list">${S.custom.map(c=>`<div class="row"><div class="grow"><span class="t">${esc(c.n)}</span><span class="s">${esc(groupName(c.g))}${c.pf?" · "+esc(c.pf):""}</span></div><button class="btn danger" data-act="rmCustom" data-v="${esc(c.id)}">Remove</button></div>`).join("")}</div>`:`<div class="sub">Add machines your club has that aren't in the list.</div>`}<button class="btn block" data-act="newCustom">+ Add custom exercise</button></div>`;
   h+=`<div class="card"><h3>Backup</h3><div class="sub">${Cloud.profile?"Your workouts sync to your Claude account and are also kept on this device.":"Your workouts are saved on this phone."} Save a backup file every week or two (to Files or iCloud Drive) so nothing is lost if the phone is reset.</div>
     <div class="btns"><button class="btn" data-act="copyBackup">Copy backup</button>${Cloud.dl||window.REP_PWA?`<button class="btn" data-act="dlBackup">Save backup file</button>`:""}</div>
@@ -975,7 +1003,11 @@ function doSaveWorkout(){
   entries.forEach(e=>{e.pr=prCheck(e,id)||null;});
   const n=v=>{const x=parseInt($(v).value,10);return isNaN(x)?null:x;};
   const w={id,date:d.start,end:new Date().toISOString(),title:d.routineName||draftTitle(),routineId:d.routineId||null,duration:n("#fDur"),hr:n("#fHr"),cal:n("#fCal"),notes:$("#fNotes").value.trim(),entries};
-  V.selR=null;saveWorkout(w);if(d.routineId&&S.settings.rampLeft>0){S.settings.rampLeft--;saveProfile();}S.draft=null;saveDraft();closeSheet();T.end=0;T.next=null;keepAwake(false);ensureTicker();go("saved",{saved:id,tab:"train"});
+  V.selR=null;saveWorkout(w);if(d.routineId){const st=S.settings;
+    if(d.deload&&st.deloadLeft>0){st.deloadLeft--;if(!st.deloadLeft){st.sinceDeload=0;st.deloadSnooze=0;w.deloadEnded=true;}}
+    else if(d.ramp&&st.rampLeft>0){st.rampLeft--;if(!st.rampLeft)w.rampEnded=true;}
+    else if(!d.ramp&&!d.deload)st.sinceDeload=(st.sinceDeload||0)+1;
+    saveWorkout(w);saveProfile();}S.draft=null;saveDraft();closeSheet();T.end=0;T.next=null;keepAwake(false);ensureTicker();go("saved",{saved:id,tab:"train"});
 }
 
 document.addEventListener("click",async ev=>{
@@ -1010,6 +1042,10 @@ document.addEventListener("click",async ev=>{
     case"programs":go("programs");break;
     case"useProgram":if(S.draft){toast("Finish or discard your current workout first");break;}S.settings.program=v;S.routines=defaultRoutines(v);saveProfile();toast("Program switched");go("home");break;
     case"rampEnd":S.settings.rampLeft=0;saveProfile();render();break;
+    case"deloadStart":S.settings.deloadLeft=4;saveProfile();toast("Recovery week: next 4 workouts are lighter");render();break;
+    case"deloadSnooze":S.settings.deloadSnooze=(S.settings.deloadSnooze||0)+4;saveProfile();render();break;
+    case"deloadStop":S.settings.deloadLeft=0;S.settings.sinceDeload=0;S.settings.deloadSnooze=0;saveProfile();render();break;
+    case"deloadEvery":S.settings.deloadEvery=+v;saveProfile();render();break;
     case"rampStart":S.settings.rampLeft=8;saveProfile();render();break;
     case"goal":S.settings.goal=v;saveProfile();render();break;
     case"rResetYes":S.routines=defaultRoutines();saveProfile();closeSheet();go("home");break;
