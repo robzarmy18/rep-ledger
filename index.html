@@ -1114,7 +1114,8 @@ function checkinCard(k){
   const f=(id,label,val,ph,step)=>`<div class="field"><label class="lbl" for="${id}">${label}</label><input type="number" inputmode="decimal" step="${step||"any"}" id="${id}" data-fci="${id}" value="${val??""}" placeholder="${ph}"></div>`;
   return `<div class="card"><h3>Daily check-in</h3><div class="sub">Weigh in first thing in the morning. Waist once a week is the best sign of fat loss while you build muscle.</div>
    <div class="kv">${f("ci_w","Weight (lb)",bwToday?bwToday.w:"","e.g. 201.4")}${f("ci_sleep","Sleep (hours)",d.sleep,"e.g. 7.5")}${f("ci_waist","Waist (in)",d.waist,"at belly button")}${f("ci_ket","Ketones (mmol/L)",d.ketones,"optional")}</div>
-   <button class="btn primary block" data-act="f_checkin">Save check-in</button></div>`;
+   <div class="btns"><button class="btn primary" data-act="f_checkin">Save check-in</button><button class="btn" data-act="f_health">Import from Apple Health</button></div>
+   ${S.settings.lastHealthImport?`<div class="sub">Last Apple Health import: ${new Date(S.settings.lastHealthImport).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`:""}</div>`;
 }
 function avgDays(n){const ks=[];for(let i=1;i<=n;i++)ks.push(shiftDay(dayKey(),-i));const logged=ks.filter(k=>(day(k).items||[]).length);
   const sum={cal:0,net:0,p:0,na:0,sug:0};logged.forEach(k=>{const t=totals(k);for(const x in sum)sum[x]+=t[x];});
@@ -1143,6 +1144,8 @@ function outlookCard(){
   const bmi=cur&&g.height?cur/(g.height*g.height)*703:null;
   h+=`<div class="kv"><div class="stat"><div class="v num">${r1(cur)}</div><div class="k">Current (lb)</div></div><div class="stat"><div class="v num">${lost>=0?"−":"+"}${r1(Math.abs(lost))}</div><div class="k">Since ${fmtDate((tr?tr.first.d:dayKey())+"T12:00:00",{month:"short",day:"numeric"})}</div></div>
     <div class="stat"><div class="v num">${gw?r1(Math.max(0,toGo)):"–"}</div><div class="k">lb to goal (${gw?gw:"set in Settings"})</div></div><div class="stat"><div class="v num">${bmi?r1(bmi):"–"}</div><div class="k">BMI (rough guide at your height)</div></div></div>`;
+  {const bfs=(S.bw||[]).filter(x=>x.bf!=null).sort((x,y)=>x.d.localeCompare(y.d));if(bfs.length){const lb=bfs[bfs.length-1],fb=bfs[0];const fatLb=lb.w*lb.bf/100,lean=lb.w-fatLb;
+    h+=`<div class="kv"><div class="stat"><div class="v num">${lb.bf}%</div><div class="k">Body fat (scale) ${bfs.length>1?`· ${r1(lb.bf-fb.bf)>0?"+":""}${r1(lb.bf-fb.bf)} since ${fmtDate(fb.d+"T12:00:00",{month:"short",day:"numeric"})}`:""}</div></div><div class="stat"><div class="v num">${r1(lean)}</div><div class="k">Lean mass (lb, estimate)</div></div></div><div class="sub">Smart-scale body fat is a rough estimate that swings with hydration. Watch its trend over weeks, not single readings.</div>`;}}
   if(gw)h+=`<div class="bar"><i style="width:${pct}%"></i></div><div class="sub num">${Math.round(pct)}% of the way from ${r1(start)} to ${gw} lb</div>`;
   const wts=(S.bw||[]).slice().sort((x,y)=>x.d.localeCompare(y.d)).slice(-60);
   if(wts.length>=2)h+=chartSVG(wts.map(p=>({y:p.w,label:fmtDate(p.d+"T12:00:00",{month:"short",day:"numeric"})})),"lb");
@@ -1301,6 +1304,65 @@ async function lookupBarcode(raw){
   }catch(e){scanMsg("No connection, so the barcode can't be looked up. Try again with signal, or add it from the label.");}
 }
 document.addEventListener("change",ev=>{if(ev.target.id==="scanFile"&&ev.target.files&&ev.target.files[0])scanFromFile(ev.target.files[0]);});
+
+/* ---------- Apple Health import (via iPhone Shortcut + clipboard) ---------- */
+const MONS=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+function looseDate(str){str=String(str||"").trim();
+  let m=str.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m){const d=new Date(str.replace(" ","T"));return isNaN(d)?new Date(+m[1],+m[2]-1,+m[3],8):d;}
+  m=str.match(/([A-Za-z]{3,9})\.? (\d{1,2}),? (\d{4})(?:\D+(\d{1,2}):(\d{2})\s*([AP]M)?)?/i);
+  if(m){const mo=MONS.indexOf(m[1].slice(0,3).toLowerCase());if(mo>=0){let h=+(m[4]||8);if(m[6]&&/pm/i.test(m[6])&&h<12)h+=12;if(m[6]&&/am/i.test(m[6])&&h===12)h=0;return new Date(+m[3],mo,+m[2],h,+(m[5]||0));}}
+  m=str.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\D+(\d{1,2}):(\d{2})\s*([AP]M)?)?/i);
+  if(m){let y=+m[3];if(y<100)y+=2000;let h=+(m[4]||8);if(m[6]&&/pm/i.test(m[6])&&h<12)h+=12;if(m[6]&&/am/i.test(m[6])&&h===12)h=0;return new Date(y,+m[1]-1,+m[2],h,+(m[5]||0));}
+  const d=new Date(str);return isNaN(d)?null:d;}
+function parseHealthText(txt){
+  const out=[];
+  String(txt||"").split(/\r?\n|\|/).forEach(line=>{
+    line=line.trim();if(!line)return;
+    const parts=line.split(/[;\t]/).map(x=>x.trim());
+    let date=null,rest=parts.slice(1);
+    if(parts.length>1)date=looseDate(parts[0]);
+    if(!date||isNaN(date)){const m=line.match(/(\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:?\d{2}|Z)?)?)/);if(m){date=new Date(m[1]);rest=[line.slice(line.indexOf(m[1])+m[1].length)];}}
+    if(!date||isNaN(date))return;
+    const nums=rest.join(" ").match(/\d+(?:[.,]\d+)?\s*(kg|lb|lbs|%)?/gi)||[];
+    let w=null,bf=null;
+    nums.forEach(n=>{const v=parseFloat(n.replace(",","."));const u=(n.match(/kg|lbs?|%/i)||[""])[0].toLowerCase();
+      if(u==="%"){if(v>2&&v<70)bf=v;return;}
+      if(w==null){const lb=u==="kg"?v*LB_PER_KG:v;if(lb>60&&lb<700){w=lb;return;}}
+      if(bf==null&&v>2&&v<70)bf=v;});
+    if(w!=null)out.push({d:dayKey(date),t:date.getTime(),w:Math.round(w*10)/10,bf:bf!=null?Math.round(bf*10)/10:undefined});
+  });
+  // one reading per day: keep the earliest (morning) weigh-in
+  const byDay={};out.sort((a,b)=>a.t-b.t).forEach(e=>{if(!byDay[e.d])byDay[e.d]=e;else if(e.bf!=null&&byDay[e.d].bf==null)byDay[e.d].bf=e.bf;});
+  return Object.values(byDay);
+}
+function importHealth(txt){
+  const rows=parseHealthText(txt);if(!rows.length)return{n:0,added:0};
+  const have=new Map((S.bw||[]).map(x=>[x.d,x]));let added=0;
+  rows.forEach(r=>{if(!have.has(r.d))added++;const e={d:r.d,w:r.w,src:"health"};if(r.bf!=null)e.bf=r.bf;have.set(r.d,e);});
+  S.bw=[...have.values()].sort((a,b)=>a.d.localeCompare(b.d));S.settings.lastHealthImport=Date.now();saveProfile();
+  return{n:rows.length,added,last:rows[rows.length-1]};
+}
+function healthSheet(){
+  sheet(`<h2>Import from Apple Health</h2>
+   <div class="sub">Run your <b>Rep Ledger weights</b> Shortcut first. It copies your scale's weigh-ins from Apple Health. Then tap Paste &amp; import.</div>
+   <button class="btn primary block big" data-act="f_hPaste">Paste &amp; import</button>
+   <div class="field"><label class="lbl" for="hTxt">Or paste the copied text here</label><textarea id="hTxt" placeholder="2026-11-09T07:12:00-05:00;201.4;27.8"></textarea></div>
+   <button class="btn block" data-act="f_hImport">Import pasted text</button>
+   <details class="fold"><summary>How to set up the Shortcut (one time)<span class="chev">⌄</span></summary><div class="foldbody sub">
+    <div><b>1.</b> In the Ovutek FitPal app, turn on Apple Health sync. In the Health app, check that FitPal is allowed to write Weight and Body Fat Percentage.</div>
+    <div><b>2.</b> Open the <b>Shortcuts</b> app → <b>+</b> → name it <b>Rep Ledger weights</b>.</div>
+    <div><b>3.</b> Add <b>Find Health Samples</b>: Type <b>Weight</b>, filter <b>Start Date is in the last 30 days</b>, sort by <b>Start Date</b>, oldest first.</div>
+    <div><b>4.</b> Add <b>Repeat with Each</b> (on the Health Samples). Inside it add a <b>Text</b> action containing: <b>Repeat Item → Start Date</b> (tap it, Date Format: ISO 8601), then a semicolon <b>;</b>, then <b>Repeat Item → Value</b>.</div>
+    <div><b>5.</b> After <b>End Repeat</b>, add <b>Combine Text</b> (Repeat Results, separator: New Lines), then <b>Copy to Clipboard</b>.</div>
+    <div><b>6.</b> Optional, fully hands-off copy: Shortcuts → <b>Automation</b> → <b>+</b> → <b>Time of Day</b> (e.g. 9:00 AM daily) → <b>Run Immediately</b> → pick this Shortcut. Then just open Rep Ledger and tap Paste &amp; import.</div>
+    <div>Body fat (optional): repeat steps 3–4 with Type <b>Body Fat Percentage</b>, or simply add it to the same Text line after another semicolon if you build it from one sample.</div>
+   </div></details>
+   <button class="btn" data-act="closeSheetBtn">Close</button>`);
+}
+function healthResult(r){
+  if(!r.n){toast("No weigh-ins found in that text. Run the Shortcut, then try again.");return;}
+  closeSheet();toast(`Imported ${r.n} weigh-in${r.n===1?"":"s"} (${r.added} new). Latest: ${r.last.w} lb${r.last.bf!=null?", "+r.last.bf+"% body fat":""}`);render();
+}
 /* ---------- food events ---------- */
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("[data-act^='f_']");if(!b)return;const a=b.dataset.act,v=b.dataset.v;const k=V.fday||dayKey();
@@ -1332,6 +1394,9 @@ document.addEventListener("click",ev=>{
     case"f_goalsSave":{const val=id=>parseFloat($("#"+id).value);const g={net:val("g_net"),sug:val("g_sug"),cal:val("g_cal"),p:val("g_p"),na:val("g_na"),water:val("g_water"),height:val("g_h")};
       Object.keys(g).forEach(x=>{if(isNaN(g[x])||g[x]<0)delete g[x];});S.settings.food={...(S.settings.food||{}),...g};saveProfile();closeSheet();render();break;}
     case"f_usecal":S.settings.food={...(S.settings.food||{}),cal:+v};saveProfile();toast("Calorie goal updated");render();break;
+    case"f_health":healthSheet();break;
+    case"f_hImport":healthResult(importHealth($("#hTxt").value));break;
+    case"f_hPaste":(async()=>{try{const t=await navigator.clipboard.readText();if(!t){toast("Clipboard is empty. Run the Shortcut first.");return;}healthResult(importHealth(t));}catch(e){toast("Couldn't read the clipboard here. Long-press the box below and tap Paste.");$("#hTxt")?.focus();}})();break;
     case"f_checkin":{const num=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?null:x;};const d=day(k,true);
       const w=num("ci_w");if(w){S.bw=(S.bw||[]).filter(x=>x.d!==k);S.bw.push({d:k,w:r1(w)});saveProfile();}
       ["sleep","waist","ketones"].forEach((f,i)=>{const val=num(["ci_sleep","ci_waist","ci_ket"][i]);if(val!=null)d[f]=val;else delete d[f];});
