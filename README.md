@@ -5,4 +5,5 @@ Workout log built around Planet Fitness equipment: pick a program day or muscle 
 **Install on iPhone:** open the GitHub Pages link in Safari → Share → Add to Home Screen. Works offline; data is stored on the phone (use Settings → Save backup file now and then).
 
 - `index.html`, `sw.js`, `manifest.webmanifest`, `icon-*.png` — the installable app served by GitHub Pages
+- `vendor/html5-qrcode.min.js` — barcode scanning library (html5-qrcode 2.3.8, Apache-2.0, see `vendor/html5-qrcode-LICENSE.txt`)
 - `source/` — source page and the script that builds the installable version (`cd source && python3 build-pwa.py`, outputs to `pwa/`)

@@ -104,6 +104,7 @@ textarea{min-height:90px;resize:vertical}
 .meter{display:flex;flex-direction:column;gap:4px}.mrow{display:flex;justify-content:space-between;gap:8px;font-size:14px}.mrow span:first-child{font-weight:600}
 .ins{font-size:14px;padding:9px 11px;border-radius:8px;background:var(--raised);border-left:3px solid var(--muted)}.ins.bad{border-left-color:var(--bad)}.ins.warn{border-left-color:var(--warn)}.ins.info{border-left-color:#4aa8ff}
 nav button{font-size:12px}
+.reader{width:100%;min-height:220px;background:#000;border-radius:12px;overflow:hidden}.reader video{width:100%!important;height:auto!important;display:block}
 .fold{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}.fold summary{list-style:none;cursor:pointer;padding:14px;font-family:var(--display);font-size:20px;font-weight:700;display:flex;justify-content:space-between;align-items:center}.fold summary::-webkit-details-marker{display:none}.fold[open] summary .chev{transform:rotate(180deg)}.fold .chev{font-size:22px;transition:transform .15s}.foldbody{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .stat{background:var(--raised);border-radius:10px;padding:10px 12px}
@@ -1089,6 +1090,7 @@ function vFood(){
   // water
   const w=d.water||0;
   h+=`<div class="card"><div class="top"><div class="grow"><h3>Water</h3><div class="sub num">${w} / ${g.water} oz</div></div><button class="btn" data-act="f_water" data-v="-8">−8</button><button class="btn primary" data-act="f_water" data-v="8">+8 oz</button><button class="btn primary" data-act="f_water" data-v="16">+16</button></div><div class="bar"><i style="width:${Math.min(100,w/g.water*100)}%;background:#4aa8ff"></i></div></div>`;
+  if(window.REP_PWA)h+=`<button class="btn primary block" data-act="f_scanQuick">Scan a barcode</button>`;
   // meals
   MEALS.forEach(([m,l])=>{const items=(d.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.meal===m);
     const mt=items.reduce((a,x)=>a+netC(x.it.n)*(x.it.qty||1),0);const mc=items.reduce((a,x)=>a+(x.it.n.cal||0)*(x.it.qty||1),0);
@@ -1190,7 +1192,7 @@ function vFoodAdd(){
   let h=header("Add to "+meal[1].toLowerCase(),"","f_back");
   h+=`<input type="search" id="fq" placeholder="Search foods, brands, spices…" value="${esc(V.fq||"")}" aria-label="Search foods" autocomplete="off">`;
   h+=`<div class="chips">${FOOD_CATS.map(([c,l])=>`<button class="chip" data-act="f_cat" data-v="${c}" aria-pressed="${cat===c}" style="padding:6px 11px;font-size:13px">${l}</button>`).join("")}</div>`;
-  h+=`<div class="btns"><button class="btn" data-act="f_custom">Create food from label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
+  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn" data-act="f_custom">Create food from label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
   const match=f=>(!q||(f.name+" "+f.brand).toLowerCase().includes(q))&&(!cat||f.cat===cat);
   const row=(f,src,i)=>`<button class="row" data-act="f_pick" data-src="${src}" data-v="${esc(i)}"><div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${Math.round(f.n.cal)} cal · ${r1(f.n.p)} g protein · ${r1(f.n.sug)} g sugar</span></div><span class="pill num ${netC(f.n)>5?"pr":"ok"}">${r1(netC(f.n))} g net</span></button>`;
   if(!q&&!cat&&(S.recentFoods||[]).length)h+=`<div class="sect">Recent</div><div class="list">${S.recentFoods.slice(0,10).map((f,i)=>row(f,"recent",i)).join("")}</div>`;
@@ -1235,9 +1237,9 @@ function amountPreview(food,q){const n=food.n;q=+q||0;
   return `<div class="kv"><div class="stat"><div class="v num">${r1(netC(n)*q)} g</div><div class="k">Net carbs</div></div><div class="stat"><div class="v num">${Math.round(n.cal*q)}</div><div class="k">Calories</div></div>
   <div class="stat"><div class="v num">${r1(n.p*q)} g</div><div class="k">Protein</div></div><div class="stat"><div class="v num">${r1(n.sug*q)} g</div><div class="k">Sugar</div></div></div>
   <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · sugar alcohols ${r1(n.sa*q)} g`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
-function customSheet(){
+function customSheet(barcode){V.fbarcode=barcode||null;
   const f=(id,l,ph)=>`<div class="field"><label class="lbl" for="${id}">${l}</label><input type="${id==="cf_name"||id==="cf_brand"||id==="cf_serv"?"text":"number"}" inputmode="${id==="cf_name"||id==="cf_brand"||id==="cf_serv"?"text":"decimal"}" id="${id}" placeholder="${ph}"></div>`;
-  sheet(`<h2>Create food from label</h2><div class="sub">Copy the numbers from the Nutrition Facts panel for one serving.</div>
+  sheet(`<h2>Create food from label</h2><div class="sub">${barcode?`Barcode ${esc(barcode)} isn't in the database yet. `:""}Copy the numbers from the Nutrition Facts panel for one serving.${barcode?" Next time you scan it, it fills in automatically.":""}</div>
    ${f("cf_name","Name","e.g. Bunless Baconator")}<div class="kv">${f("cf_brand","Brand (optional)","e.g. Wendy's")}${f("cf_serv","Serving size","e.g. 1 can, 2 tbsp")}
    ${f("cf_cal","Calories","0")}${f("cf_c","Total carbs (g)","0")}${f("cf_fib","Fiber (g)","0")}${f("cf_sug","Total sugars (g)","0")}${f("cf_sa","Sugar alcohols (g)","0")}${f("cf_p","Protein (g)","0")}${f("cf_f","Fat (g)","0")}${f("cf_na","Sodium (mg)","0")}</div>
    <div class="btns"><button class="btn primary" data-act="f_customSave">Save food</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);
@@ -1247,6 +1249,50 @@ function goalsSheet(){const g=fg();const f=(id,l,v)=>`<div class="field"><label 
   <div class="kv">${f("g_net","Net carbs max (g)",g.net)}${f("g_sug","Sugar max (g)",g.sug)}${f("g_cal","Calories",g.cal)}${f("g_p","Protein (g)",g.p)}${f("g_na","Sodium target (mg)",g.na)}${f("g_water","Water (oz)",g.water)}${f("g_h","Height (inches)",g.height)}</div>
   <div class="btns"><button class="btn primary" data-act="f_goalsSave">Save goals</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
 
+
+/* ---------- barcode scanning (installed app) ---------- */
+let SCAN=null;
+function loadScanLib(){return new Promise((res,rej)=>{if(window.__Html5QrcodeLibrary__)return res(window.__Html5QrcodeLibrary__);
+  const sc=document.createElement("script");sc.src="vendor/html5-qrcode.min.js";sc.onload=()=>res(window.__Html5QrcodeLibrary__);sc.onerror=rej;document.head.appendChild(sc);});}
+function scanFormats(L){const F=L.Html5QrcodeSupportedFormats;return[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E];}
+function scanMsg(t){const m=$("#scanMsg");if(m)m.textContent=t;}
+async function stopScan(){const sc=SCAN;SCAN=null;if(sc){try{await sc.stop();}catch(e){}try{sc.clear();}catch(e){}}}
+async function openScanner(){
+  sheet(`<h2>Scan barcode</h2><div id="reader" class="reader"></div><div class="sub" id="scanMsg">Starting camera…</div>
+   <label class="btn block" style="text-align:center">Take a photo of the barcode instead<input type="file" accept="image/*" capture="environment" id="scanFile" hidden></label>
+   <div class="btns"><input type="text" inputmode="numeric" id="scanCode" placeholder="Or type the barcode number" style="flex:2"><button class="btn" data-act="f_scanType">Look up</button></div>
+   <button class="btn" data-act="closeSheetBtn">Cancel</button>`);
+  try{const L=await loadScanLib();if(!$("#reader"))return;
+    SCAN=new L.Html5Qrcode("reader",{formatsToSupport:scanFormats(L),useBarCodeDetectorIfSupported:true,verbose:false});
+    let done=false;
+    await SCAN.start({facingMode:"environment"},{fps:10,qrbox:(w,h)=>({width:Math.min(300,Math.floor(w*0.9)),height:Math.min(150,Math.floor(h*0.5))})},
+      code=>{if(done)return;done=true;try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}stopScan();lookupBarcode(code);},()=>{});
+    scanMsg("Line the barcode up inside the box. Good light helps.");
+  }catch(e){scanMsg("Camera isn't available. Allow camera access for this app in iPhone Settings, or take a photo / type the number below.");}
+}
+async function scanFromFile(file){
+  scanMsg("Reading photo…");
+  try{const L=await loadScanLib();await stopScan();let tmp=document.getElementById("scanTmp");if(!tmp){tmp=document.createElement("div");tmp.id="scanTmp";tmp.style.display="none";document.body.appendChild(tmp);}
+    const r=new L.Html5Qrcode("scanTmp",{formatsToSupport:scanFormats(L),verbose:false});const code=await r.scanFile(file,false);try{r.clear();}catch(e){}lookupBarcode(code);}
+  catch(e){scanMsg("Couldn't find a barcode in that photo. Get closer, keep it flat and in focus, or type the number.");}
+}
+async function fetchOFF(code){
+  const res=await fetch("https://world.openfoodfacts.org/api/v2/product/"+code+".json?fields=product_name,brands,serving_size,serving_quantity,nutriments");
+  if(res.status===404)return null;if(!res.ok)throw new Error("net");const js=await res.json();
+  if(!js||js.status!==1||!js.product)return null;return parseOFF(js.product);
+}
+async function lookupBarcode(raw){
+  const code=String(raw||"").replace(/\D/g,"");if(code.length<6){scanMsg("That doesn't look like a full barcode number.");return;}
+  scanMsg("Found "+code+". Looking it up…");
+  const local=[...(S.customFoods||[]),...(S.recentFoods||[])].find(f=>f.barcode===code);
+  if(local){await stopScan();closeSheet();amountSheet(JSON.parse(JSON.stringify(local)),null);return;}
+  try{let food=await fetchOFF(code);if(!food&&code.length===12)food=await fetchOFF("0"+code);
+    await stopScan();closeSheet();
+    if(food){food.barcode=code;amountSheet(food,null);}
+    else{customSheet(code);toast("Not in the food database yet. Enter the label once and it will scan next time.");}
+  }catch(e){scanMsg("No connection, so the barcode can't be looked up. Try again with signal, or add it from the label.");}
+}
+document.addEventListener("change",ev=>{if(ev.target.id==="scanFile"&&ev.target.files&&ev.target.files[0])scanFromFile(ev.target.files[0]);});
 /* ---------- food events ---------- */
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("[data-act^='f_']");if(!b)return;const a=b.dataset.act,v=b.dataset.v;const k=V.fday||dayKey();
@@ -1264,12 +1310,15 @@ document.addEventListener("click",ev=>{
     case"f_meal":V.fmeal=v;document.querySelectorAll("[data-act=f_meal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===v));break;
     case"f_save":{const q=+$("#fqty").value;if(!(q>0)){toast("Enter how many servings");break;}const p=V.fpending;const d=day(k,true);
       if(p.editIdx!=null)d.items[p.editIdx].qty=q;
-      else{const f=p.food;d.items.push({uid:uidGen(),name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",qty:q,meal:V.fmeal||"snack",at:Date.now()});addRecent({name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||""});}
+      else{const f=p.food;d.items.push({uid:uidGen(),name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",qty:q,meal:V.fmeal||"snack",at:Date.now()});addRecent({name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",barcode:f.barcode||undefined});}
       saveDay(k);closeSheet();toast(p.editIdx!=null?"Updated":"Added");go("food");break;}
     case"f_del":{day(k).items.splice(V.fpending.editIdx,1);saveDay(k);closeSheet();render();break;}
     case"f_custom":customSheet();break;
+    case"f_scan":openScanner();break;
+    case"f_scanQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";openScanner();break;}
+    case"f_scanType":lookupBarcode($("#scanCode").value);break;
     case"f_customSave":{const val=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?0:x;};const name=$("#cf_name").value.trim();if(!name){toast("Give the food a name");break;}
-      const food={id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving:$("#cf_serv").value.trim()||"1 serving",cat:"custom",n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:val("cf_sa"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
+      const food={id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving:$("#cf_serv").value.trim()||"1 serving",cat:"custom",barcode:V.fbarcode||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:val("cf_sa"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
       S.customFoods=[food,...(S.customFoods||[])];saveProfile();closeSheet();amountSheet(food,null);break;}
     case"f_goals":goalsSheet();break;
     case"f_goalsSave":{const val=id=>parseFloat($("#"+id).value);const g={net:val("g_net"),sug:val("g_sug"),cal:val("g_cal"),p:val("g_p"),na:val("g_na"),water:val("g_water"),height:val("g_h")};
@@ -1352,7 +1401,7 @@ function completeSet(e,i){
 function toast(msg){const d=document.createElement("div");d.className="toast";d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),2600);}
 function go(view,extra){Object.assign(V,extra||{});V.view=view;render();window.scrollTo(0,0);}
 function sheet(html){$("#overlaySlot").innerHTML=`<div class="overlay" data-act="closeSheet"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;}
-function closeSheet(){$("#overlaySlot").innerHTML="";}
+function closeSheet(){if(typeof stopScan==="function")stopScan();$("#overlaySlot").innerHTML="";}
 
 function finishSheet(complete){
   const mins=Math.max(1,Math.round((Date.now()-new Date(S.draft.start))/60000));
