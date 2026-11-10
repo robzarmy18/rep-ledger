@@ -413,7 +413,7 @@ function migrate(){
    ============================================================ */
 const LS_KEY="repledger.v1";
 const LB_PER_KG=2.20462;
-let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[],shop:null,profile:null,customProgram:null,money:null,plan:null};
+let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[],shop:null,profile:null,customProgram:null,money:null,plan:null,recipes:[],recipesSeeded:false};
 let V={tab:"train",view:"home",group:null,exId:null,opts:{},editIdx:null,idx:null,q:"",detailId:null,progKey:null,metric:"top",saved:null,confirmDel:false};
 const Cloud={db:null,profile:null,workouts:null,draft:null,status:"local",chains:{},timers:{}};
 
@@ -430,7 +430,7 @@ function queueWrite(key,ref,fn){
   });
 }
 function debounced(key,ms,fn){clearTimeout(Cloud.timers[key]);Cloud.timers[key]=setTimeout(fn,ms);}
-function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,money:S.money||null,plan:S.plan||null,profile:S.profile||null,customProgram:S.customProgram||null,shop:S.shop,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
+function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,recipes:S.recipes||[],recipesSeeded:!!S.recipesSeeded,money:S.money||null,plan:S.plan||null,profile:S.profile||null,customProgram:S.customProgram||null,shop:S.shop,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
 function saveProfile(){
   S.profileAt=Date.now();saveLocal();
   if(Cloud.profile)debounced("profile",1200,()=>queueWrite("profile",Cloud.profile,r=>r.set(profileBody())));
@@ -470,7 +470,7 @@ async function initCloud(){
     const pd=p.exists?p.data():null;
     if(pd){
       S.deleted=[...new Set([...(S.deleted||[]),...(pd.deleted||[])])];
-      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.money)S.money=JSON.parse(JSON.stringify(pd.money));if(pd.plan)S.plan=JSON.parse(JSON.stringify(pd.plan));if(pd.profile)S.profile=JSON.parse(JSON.stringify(pd.profile));if(pd.customProgram)S.customProgram=JSON.parse(JSON.stringify(pd.customProgram));if(pd.shop)S.shop=JSON.parse(JSON.stringify(pd.shop));if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
+      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.recipes&&pd.recipes.length)S.recipes=JSON.parse(JSON.stringify(pd.recipes));if(pd.recipesSeeded)S.recipesSeeded=true;if(pd.money)S.money=JSON.parse(JSON.stringify(pd.money));if(pd.plan)S.plan=JSON.parse(JSON.stringify(pd.plan));if(pd.profile)S.profile=JSON.parse(JSON.stringify(pd.profile));if(pd.customProgram)S.customProgram=JSON.parse(JSON.stringify(pd.customProgram));if(pd.shop)S.shop=JSON.parse(JSON.stringify(pd.shop));if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
     }
     // workouts: union, minus deleted
     const del=new Set(S.deleted);const map=new Map();
@@ -670,7 +670,7 @@ function render(){
   if(LOCKED){renderLock();return;}
   document.body.classList.toggle("onboarding",V.view==="welcome");
   renderNav();
-  const views={money:vMoney,welcome:vWelcome,today:vToday,food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
+  const views={recipes:vRecipes,recipe:vRecipe,recipeEdit:vRecipeEdit,money:vMoney,welcome:vWelcome,today:vToday,food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
   $("#app").innerHTML=(views[V.view]||vHome)();
   T.key="";renderTimer();
 }
@@ -1114,6 +1114,9 @@ const FOODS_RAW=[
 ["Cumin","","1 tsp",8,0.9,0.2,0,0.4,0.5,4,"spice"],
 ["Cinnamon","","1 tsp",6,2.1,1.4,0.1,0.1,0,0,"spice"],
 ["Italian seasoning","","1 tsp",3,0.6,0.4,0,0.1,0.1,0,"spice"],
+["Sea salt (fine)","","1 tsp",0,0,0,0,0,0,2300,"spice"],
+["Crushed red pepper flakes","","1 tsp",6,1,0.5,0.2,0.2,0.3,1,"spice"],
+["Dried oregano","","1 tsp",3,0.7,0.4,0,0.1,0,0,"spice"],
 ["Seasoned salt","Lawry's","1/4 tsp",0,0,0,0,0,0,380,"spice"],
 ["Montreal Steak Seasoning","McCormick","1/4 tsp",0,0,0,0,0,0,140,"spice"],
 ["Creole seasoning","Tony Chachere's","1/4 tsp",0,0,0,0,0,0,360,"spice"],
@@ -1165,7 +1168,7 @@ function saveDay(k){const d=day(k,true);d.updatedAt=Date.now();saveLocal();
 function addRecent(food){S.recentFoods=[food,...(S.recentFoods||[]).filter(f=>!(f.name===food.name&&f.brand===food.brand&&f.serving===food.serving))].slice(0,30);saveProfile();}
 function histFoods(){const m=new Map();Object.values(S.days||{}).forEach(d=>(d.items||[]).forEach(it=>{const key=it.name+"|"+(it.brand||"")+"|"+it.serving;const x=m.get(key)||{food:{name:it.name,brand:it.brand||"",serving:it.serving,n:it.n,cat:it.cat||"",barcode:it.barcode},n:0};x.n++;m.set(key,x);}));
   return[...m.values()].sort((a,b)=>b.n-a.n);}
-function allFoods(){return[...(S.customFoods||[]),...FOODS];}
+function allFoods(){return[...(S.customFoods||[]),...(S.recipes||[]).map(recipeFood),...FOODS];}
 
 /* ---------- gauge ---------- */
 function gaugeSVG(val,goal,label,unitTxt){
@@ -1201,6 +1204,7 @@ function vFood(){
   const w=d.water||0;
   h+=`<div class="card"><div class="top"><div class="grow"><h3>Water</h3><div class="sub num">${w} / ${g.water} oz</div></div><button class="btn" data-act="f_water" data-v="-8">−8</button><button class="btn primary" data-act="f_water" data-v="8">+8 oz</button><button class="btn primary" data-act="f_water" data-v="16">+16</button></div><div class="bar"><i style="width:${Math.min(100,w/g.water*100)}%;background:#4aa8ff"></i></div></div>`;
   h+=activityCard(k);
+  h+=`<button class="btn block" data-act="f_recipes">Recipe vault${(S.recipes||[]).length?` (${S.recipes.length})`:""}</button>`;
   if(window.REP_PWA)h+=`<button class="btn primary block" data-act="f_scanQuick">Scan a barcode</button>`;
   // meals
   MEALS.forEach(([m,l])=>{const items=(d.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.meal===m);
@@ -1385,7 +1389,7 @@ function vFoodAdd(){
   const row=(f,src,i)=>`<button class="row" data-act="f_pick" data-src="${src}" data-v="${esc(i)}"><div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${Math.round(f.n.cal)} cal · ${r1(f.n.p)} g protein · ${r1(f.n.sug)} g sugar</span></div><span class="pill num ${netC(f.n)>5?"pr":"ok"}">${r1(netC(f.n))} g net</span></button>`;
   const hf=histFoods();
   if(!q&&!cat&&hf.length)h+=`<div class="sect">My foods (most logged)</div><div class="list">${hf.slice(0,12).map((x,i)=>row(x.food,"hist",i).replace("</span></div><span class=\"pill",`</span><span class="s">logged ${x.n}×</span></div><span class="pill`)).join("")}</div>`;
-  if(q){const hm=hf.map((x,i)=>({x,i})).filter(({x})=>(x.food.name+" "+(x.food.brand||"")).toLowerCase().includes(q)&&!FOODS.some(f=>f.name===x.food.name&&f.brand===(x.food.brand||"")));if(hm.length)h+=`<div class="sect">From your log</div><div class="list">${hm.slice(0,15).map(({x,i})=>row(x.food,"hist",i)).join("")}</div>`;}
+  if(q){const hm=hf.map((x,i)=>({x,i})).filter(({x})=>(x.food.name+" "+(x.food.brand||"")).toLowerCase().includes(q)&&!allFoods().some(f=>f.name===x.food.name&&(f.brand||"")===(x.food.brand||"")));if(hm.length)h+=`<div class="sect">From your log</div><div class="list">${hm.slice(0,15).map(({x,i})=>row(x.food,"hist",i)).join("")}</div>`;}
   if(!q&&!cat&&(S.recentFoods||[]).length)h+=`<div class="sect">Recent</div><div class="list">${S.recentFoods.slice(0,10).map((f,i)=>row(f,"recent",i)).join("")}</div>`;
   if(V.fonline){h+=`<div class="sect">Online results</div>`;
     if(V.fonline==="loading")h+=`<div class="empty">Searching…</div>`;
@@ -1419,7 +1423,7 @@ function amountSheet(food,editIdx){
   V.fpending={food,editIdx};const it=editIdx!=null?day(V.fday||dayKey()).items[editIdx]:null;const qty=it?it.qty:1;
   sheet(`<h2>${esc(food.name)}</h2><div class="sub">${esc(food.brand||"")}${food.brand?" · ":""}1 serving = ${esc(food.serving)}</div>
    <div class="top"><button class="btn" data-act="f_qty" data-v="-0.25">−¼</button><div class="grow field"><label class="lbl" for="fqty">Servings</label><input type="number" inputmode="decimal" step="0.25" min="0" id="fqty" value="${qty}" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="f_qty" data-v="0.25">+¼</button></div>
-   <div class="chips">${[0.5,1,1.5,2,3].map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("")}</div>
+   <div class="chips">${[0.5,1,1.5,2,3].map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("")}${food.recipeId&&recipeById(food.recipeId)?`<button class="chip" data-act="f_qtyset" data-v="${recipeById(food.recipeId).servings}">Whole batch</button>`:""}</div>
    <div id="fprev">${amountPreview(food,qty)}</div>
    ${editIdx==null?`<div class="q"><label>Meal</label><div class="chips">${MEALS.map(([m,l])=>`<button class="chip" data-act="f_meal" data-v="${m}" aria-pressed="${(V.fmeal||"breakfast")===m}">${l}</button>`).join("")}</div></div>`:""}
    <div class="btns"><button class="btn primary" data-act="f_save">${editIdx==null?"Add":"Update"}</button>${editIdx!=null?`<button class="btn danger" data-act="f_del">Remove</button>`:""}<button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);
@@ -2104,6 +2108,89 @@ function backupNudge(){
   return `<div class="card"><div class="top"><div class="grow"><h3>Save a backup</h3><div class="sub">${last?`Last backup ${Math.round((Date.now()-last)/864e5)} days ago.`:"You haven't saved a backup file yet."} Your data lives on this phone; a backup in Files or iCloud Drive protects it if the phone is lost or reset.</div></div></div><div class="btns"><button class="btn primary" data-act="dlBackup">Save backup file</button><button class="btn ghost" data-act="bkLater">Later</button></div></div>`;
 }
 /* ============================================================
+   RECIPE VAULT: saved recipes, nutrition from ingredients, one-tap logging
+   ============================================================ */
+function foodByName(n){return allFoods().find(f=>f.name.toLowerCase()===n.toLowerCase());}
+function ingFrom(text,name,qty){const f=foodByName(name);return{text,qty,food:f?{name:f.name,brand:f.brand||"",serving:f.serving,n:{...f.n}}:null};}
+function seedRecipes(){
+  if(S.recipesSeeded)return false;S.recipes=S.recipes||[];
+  if(!S.recipes.some(r=>r.id==="taco-seasoning"))S.recipes.push({id:"taco-seasoning",name:"Homemade Taco Seasoning",servings:4,servingLabel:"¼ batch (about 2 tsp)",
+    notes:"Mix everything together. One batch seasons about 1 lb of meat. Keto-friendly: no sugar or starch fillers like store-bought packets.",tags:["keto","tacos","spices"],created:Date.now(),
+    ings:[ingFrom("1 tablespoon chili powder","Chili powder",3),ingFrom("1 ½ teaspoons ground cumin","Cumin",1.5),ingFrom("1 teaspoon sea salt","Sea salt (fine)",1),
+      ingFrom("1 teaspoon ground black pepper","Black pepper",1),ingFrom("½ teaspoon ground paprika","Paprika",0.5),ingFrom("¼ teaspoon garlic powder","Garlic powder",0.25),
+      ingFrom("¼ teaspoon onion powder","Onion powder",0.25),ingFrom("¼ teaspoon crushed red pepper flakes","Crushed red pepper flakes",0.25),ingFrom("¼ teaspoon dried oregano","Dried oregano",0.25)]});
+  S.recipesSeeded=true;return true;
+}
+const NK=["cal","c","fib","sug","p","f","na","sa"];
+function recipeTotals(r){const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,sa:0};(r.ings||[]).forEach(i=>{if(!i.food)return;NK.forEach(k=>t[k]+=(i.food.n[k]||0)*(i.qty||0));});return t;}
+function recipeFood(r){const t=recipeTotals(r);const sv=Math.max(1,+r.servings||1);const n={};NK.forEach(k=>n[k]=Math.round(t[k]/sv*10)/10);n.cal=Math.round(t.cal/sv);n.na=Math.round(t.na/sv);
+  return{id:"r_"+r.id,name:r.name,brand:"My recipe",serving:r.servingLabel||`1 of ${sv} servings`,n,cat:"recipe",recipeId:r.id};}
+function recipeById(id){return(S.recipes||[]).find(r=>r.id===id);}
+function vRecipes(){
+  const q=(V.rq||"").toLowerCase();const list=(S.recipes||[]).filter(r=>!q||(r.name+" "+(r.tags||[]).join(" ")+" "+(r.ings||[]).map(i=>i.text).join(" ")).toLowerCase().includes(q));
+  let h=header("Recipe vault","Your saved recipes with nutrition worked out from the ingredients","rcBackFood");
+  h+=`<div class="btns"><input type="search" id="rq" placeholder="Search recipes or ingredients" value="${esc(V.rq||"")}" style="flex:2"><button class="btn primary" data-act="rc_new">+ New</button></div>`;
+  if(!list.length)h+=`<div class="empty">${q?"No recipes match.":"No recipes yet."}</div>`;
+  else h+=`<div class="list">${list.map(r=>{const f=recipeFood(r);return `<button class="row" data-act="rc_open" data-v="${esc(r.id)}"><div class="grow"><span class="t">${esc(r.name)}</span><span class="s">${(r.ings||[]).length} ingredients · per ${esc(r.servingLabel||"serving")}: ${f.n.cal} cal · ${r1(netC(f.n))} g net carbs · ${f.n.na.toLocaleString()} mg sodium</span></div><span class="chev">›</span></button>`;}).join("")}</div>`;
+  return h;
+}
+function vRecipe(){
+  const r=recipeById(V.recId);if(!r){V.view="recipes";return vRecipes();}
+  const t=recipeTotals(r);const f=recipeFood(r);const sv=Math.max(1,+r.servings||1);
+  const row=(label,k,unit,dec)=>`<tr><td>${label}</td><td class="num">${dec?r1(f.n[k]):Math.round(f.n[k]).toLocaleString()}${unit}</td><td class="num">${dec?r1(t[k]):Math.round(t[k]).toLocaleString()}${unit}</td></tr>`;
+  let h=header(esc(r.name),`Makes ${sv} servings · 1 serving = ${esc(r.servingLabel||"1 serving")}`,"rcList");
+  h+=`<div class="btns"><button class="btn primary big" data-act="rc_log">Log it</button><button class="btn" data-act="rc_shop">Add to shopping list</button></div>`;
+  h+=`<div class="card"><h3>Nutrition</h3><table class="tbl"><thead><tr><th></th><th>Per serving</th><th>Whole batch</th></tr></thead><tbody>
+    <tr><td><b>Net carbs</b></td><td class="num"><b>${r1(netC(f.n))} g</b></td><td class="num"><b>${r1(netC(t))} g</b></td></tr>
+    ${row("Calories","cal","")}${row("Total carbs","c"," g",1)}${row("Fiber","fib"," g",1)}${row("Sugar","sug"," g",1)}${row("Protein","p"," g",1)}${row("Fat","f"," g",1)}${row("Sodium","na"," mg")}</tbody></table>
+    <div class="sub">Worked out from each ingredient below using typical label values. Coarse sea salt packs less sodium per teaspoon than fine salt.</div></div>`;
+  h+=`<div class="card"><h3>Ingredients</h3><table class="tbl"><thead><tr><th>Ingredient</th><th>Net carbs</th><th>Sodium</th></tr></thead><tbody>${(r.ings||[]).map(i=>{const n=i.food?i.food.n:null;const q=i.qty||0;
+      return `<tr><td>${esc(i.text)}</td><td class="num">${n?r1(netC(n)*q)+" g":"–"}</td><td class="num">${n?Math.round(n.na*q).toLocaleString()+" mg":"–"}</td></tr>`;}).join("")}</tbody></table></div>`;
+  if(r.notes)h+=`<div class="card"><h3>Notes</h3><div class="jtext">${esc(r.notes)}</div></div>`;
+  h+=`<div class="btns"><button class="btn" data-act="rc_copy">Copy recipe</button><button class="btn" data-act="rc_edit">Edit</button><button class="btn danger" data-act="rc_del">Delete</button></div>`;
+  return h;
+}
+function vRecipeEdit(){
+  const r=recipeById(V.recId);if(!r){V.view="recipes";return vRecipes();}
+  let h=header("Edit recipe","Pick each ingredient from the food list so the nutrition adds up","rcOpenBack");
+  h+=`<div class="field"><label class="lbl" for="re_name">Name</label><input type="text" id="re_name" data-re="name" value="${esc(r.name)}"></div>
+   <div class="btns"><div class="field" style="flex:1"><label class="lbl" for="re_sv">Servings it makes</label><input type="number" inputmode="numeric" id="re_sv" data-re="servings" value="${r.servings||1}"></div><div class="field" style="flex:2"><label class="lbl" for="re_sl">One serving is</label><input type="text" id="re_sl" data-re="servingLabel" value="${esc(r.servingLabel||"")}" placeholder="e.g. 1 cup, ¼ batch"></div></div>`;
+  h+=`<div class="q"><label>Ingredients</label><div class="list">${(r.ings||[]).map((i,ix)=>`<div class="row"><div class="grow"><span class="t">${esc(i.text)}</span><span class="s">${i.food?`${r1(i.qty)} × ${esc(i.food.serving)} of ${esc(i.food.name)}`:"No nutrition linked"}</span></div><button class="x" data-act="rc_ingDel" data-v="${ix}" aria-label="Remove ingredient">✕</button></div>`).join("")||`<div class="row"><span class="sub">No ingredients yet.</span></div>`}</div></div>`;
+  h+=`<div class="card"><h3>Add an ingredient</h3><input type="text" id="ri_food" list="riFoods" placeholder="Search foods, e.g. cumin"><datalist id="riFoods">${allFoods().map(f=>`<option value="${esc(f.name)}">${esc(f.serving)}${f.brand?" · "+esc(f.brand):""}</option>`).join("")}</datalist>
+    <div class="btns"><div class="field" style="flex:1"><label class="lbl" for="ri_qty">How many servings of that food</label><input type="number" inputmode="decimal" step="0.25" id="ri_qty" value="1"></div><div class="field" style="flex:2"><label class="lbl" for="ri_text">How it reads in the recipe (optional)</label><input type="text" id="ri_text" placeholder="e.g. 1 ½ teaspoons ground cumin"></div></div>
+    <div class="sub">Example: if the food is listed per 1 tsp and the recipe uses 1 tablespoon, enter 3.</div><button class="btn primary" data-act="rc_ingAdd">Add ingredient</button></div>`;
+  h+=`<div class="field"><label class="lbl" for="re_notes">Notes / directions</label><textarea id="re_notes" data-re="notes">${esc(r.notes||"")}</textarea></div>
+   <button class="btn primary block" data-act="rc_open" data-v="${esc(r.id)}">Done</button>`;
+  return h;
+}
+function recipeText(r){const f=recipeFood(r);return `${r.name}\n${(r.ings||[]).map(i=>"- "+i.text).join("\n")}${r.notes?"\n\n"+r.notes:""}\n\nPer ${r.servingLabel||"serving"}: ${f.n.cal} cal, ${r1(netC(f.n))} g net carbs, ${f.n.na} mg sodium`;}
+document.addEventListener("click",async ev=>{
+  const b=ev.target.closest("[data-act^='rc_'],[data-act=rcBackFood],[data-act=rcList],[data-act=rcOpenBack],[data-act=f_recipes]");if(!b)return;const a=b.dataset.act,v=b.dataset.v;
+  switch(a){
+    case"f_recipes":V.rq="";go("recipes");break;
+    case"rcBackFood":go("food");break;
+    case"rcList":go("recipes");break;
+    case"rcOpenBack":saveProfile();go("recipe");break;
+    case"rc_open":saveProfile();go("recipe",{recId:v});break;
+    case"rc_new":{const r={id:uidGen(),name:"New recipe",servings:4,servingLabel:"",ings:[],notes:"",created:Date.now()};S.recipes=[r,...(S.recipes||[])];saveProfile();go("recipeEdit",{recId:r.id});break;}
+    case"rc_edit":go("recipeEdit");break;
+    case"rc_del":sheet(`<h2>Delete this recipe?</h2><div class="btns"><button class="btn danger" data-act="rc_delYes">Delete</button><button class="btn" data-act="closeSheetBtn">Keep</button></div>`);break;
+    case"rc_delYes":S.recipes=(S.recipes||[]).filter(r=>r.id!==V.recId);saveProfile();closeSheet();go("recipes");break;
+    case"rc_log":{const r=recipeById(V.recId);const hr=new Date().getHours();V.fday=null;V.fmeal=hr<11?"breakfast":hr<16?"lunch":hr<21?"dinner":"snack";V.tab="food";amountSheet(recipeFood(r),null);break;}
+    case"rc_shop":{const r=recipeById(V.recId);const have=new Set(shop().items.map(i=>i.text.toLowerCase()));let n=0;(r.ings||[]).forEach(i=>{const t=i.food?i.food.name:i.text;if(!have.has(t.toLowerCase())){shop().items.push({id:uidGen(),text:t,done:false,src:"app"});n++;}});saveShop();toast(n?`Added ${n} item${n===1?"":"s"} to your shopping list`:"Everything's already on your list");break;}
+    case"rc_copy":{const r=recipeById(V.recId);try{await navigator.clipboard.writeText(recipeText(r));toast("Recipe copied");}catch(e){sheet(`<h2>Copy this recipe</h2><textarea style="min-height:240px" readonly>${esc(recipeText(r))}</textarea><button class="btn" data-act="closeSheetBtn">Close</button>`);}break;}
+    case"rc_ingAdd":{const r=recipeById(V.recId);const name=($("#ri_food").value||"").trim();const f=foodByName(name);if(!f){toast("Pick a food from the list");break;}
+      const qty=parseFloat($("#ri_qty").value)||1;const text=($("#ri_text").value||"").trim()||`${r1(qty)} × ${f.serving} ${f.name}`;
+      r.ings=[...(r.ings||[]),{text,qty,food:{name:f.name,brand:f.brand||"",serving:f.serving,n:{...f.n}}}];saveProfile();render();break;}
+    case"rc_ingDel":{const r=recipeById(V.recId);r.ings.splice(+v,1);saveProfile();render();break;}
+  }
+});
+document.addEventListener("input",ev=>{const t=ev.target;
+  if(t.dataset.re){const r=recipeById(V.recId);if(r){r[t.dataset.re]=t.dataset.re==="servings"?Math.max(1,parseInt(t.value,10)||1):t.value;S.profileAt=Date.now();saveLocal();}}
+  if(t.id==="rq"){V.rq=t.value;const pos=t.selectionStart;render();const q=$("#rq");if(q){q.focus();try{q.setSelectionRange(pos,pos);}catch(e){}}}
+});
+
+/* ============================================================
    REST TIMER
    ============================================================ */
 let T={end:0,iv:null,next:null,beeped:false,key:""};
@@ -2315,7 +2402,7 @@ document.addEventListener("click",async ev=>{
       (d.custom||[]).forEach(c=>{if(!S.custom.find(x=>x.id===c.id))S.custom.push(c);});
       if(d.version>=2){if(d.days)Object.keys(d.days).forEach(k=>{if(!S.days[k]||(d.days[k].updatedAt||0)>(S.days[k].updatedAt||0))S.days[k]=d.days[k];});
         if(d.bw){const mp=new Map((S.bw||[]).map(x=>[x.d,x]));d.bw.forEach(x=>{if(!mp.has(x.d))mp.set(x.d,x);});S.bw=[...mp.values()].sort((a,b)=>a.d.localeCompare(b.d));}
-        ["customFoods","recentFoods","shop","profile","customProgram","money","plan","routines","lastOpts"].forEach(f=>{if(d[f]&&(!S[f]||(Array.isArray(S[f])&&!S[f].length)))S[f]=d[f];});
+        ["customFoods","recentFoods","shop","profile","customProgram","money","plan","routines","lastOpts","recipes"].forEach(f=>{if(d[f]&&(!S[f]||(Array.isArray(S[f])&&!S[f].length)))S[f]=d[f];});
         if(d.settings)S.settings={...d.settings,...S.settings};}
       saveProfile();toast(`Restored ${n} workout${n===1?"":"s"}`);render();}catch(e){toast("That doesn't look like a Rep Ledger backup");}break;}
   }
@@ -2324,7 +2411,7 @@ function addToRoutine(exId,opts){const pf=V.pickFor||"";const r=pf.startsWith("p
   if(r){r.items.push({exId,opts,sets:3,lo:S.settings.lo,hi:S.settings.hi,rest:90});S.lastOpts[exId]=opts;saveProfile();toast("Added to "+r.name);}
   go("routine",{rid:r&&!V.planDate?r.id:V.rid});}
 function vPickGroup(){return header("Add to "+esc((((V.pickFor||"").startsWith("plan:")?ensurePlan(V.pickFor.slice(5)):routines().find(x=>x.id===V.pickFor))||{}).name||"workout"),"Pick a muscle group","pickCancel")+`<div class="grid">`+GROUPS.map(g=>`<button class="gbtn" data-act="group" data-v="${g.id}"><b>${g.name}</b><span>${g.blurb}</span></button>`).join("")+`</div>`;}
-function backupText(){return JSON.stringify({app:"rep-ledger",version:2,exported:new Date().toISOString(),settings:S.settings,custom:S.custom,workouts:S.workouts,days:S.days,bw:S.bw,routines:S.routines,customFoods:S.customFoods,recentFoods:S.recentFoods,shop:S.shop,profile:S.profile,customProgram:S.customProgram,money:S.money,plan:S.plan,lastOpts:S.lastOpts});}
+function backupText(){return JSON.stringify({app:"rep-ledger",version:2,exported:new Date().toISOString(),settings:S.settings,custom:S.custom,workouts:S.workouts,days:S.days,bw:S.bw,routines:S.routines,customFoods:S.customFoods,recentFoods:S.recentFoods,shop:S.shop,profile:S.profile,customProgram:S.customProgram,money:S.money,plan:S.plan,recipes:S.recipes,lastOpts:S.lastOpts});}
 
 document.addEventListener("toggle",ev=>{if(ev.target.id==="addFold")V.addOpen=ev.target.open;},true);
 document.addEventListener("input",ev=>{
@@ -2345,6 +2432,7 @@ document.addEventListener("input",ev=>{
 loadLocal();
 const LOADED_AT=S.savedAt||0;
 if(migrate())saveProfile();
+if(seedRecipes())saveProfile();
 function dropStaleDraft(){if(S.draft&&!S.draft.entries.some(e=>setsOf(e).length)&&Date.now()-new Date(S.draft.start)>12*3600e3){S.draft=null;saveDraft();return true;}return false;}
 dropStaleDraft();
 if(lockOn()&&lockSupported())LOCKED=true;
