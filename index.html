@@ -127,6 +127,11 @@ nav button{font-size:12px}
 .rcode{font-family:var(--display);font-size:34px;font-weight:700;letter-spacing:.08em;text-align:center;background:var(--raised);border-radius:10px;padding:14px}
 body.privacy #app{filter:blur(18px)}
 @media (max-width:360px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.kbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kbtn{min-height:58px;border-radius:12px;border:2px solid var(--line);background:var(--raised);font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.kbtn.in[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#04140c}.kbtn.out[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#200}
+.card.kin{border-color:rgba(60,207,142,.6)}.card.kout{border-color:rgba(255,93,93,.6)}
+.frow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.frow:last-of-type{border-bottom:0}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:middle}
 .fold{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}.fold summary{list-style:none;cursor:pointer;padding:14px;font-family:var(--display);font-size:20px;font-weight:700;display:flex;justify-content:space-between;align-items:center}.fold summary::-webkit-details-marker{display:none}.fold[open] summary .chev{transform:rotate(180deg)}.fold .chev{font-size:22px;transition:transform .15s}.foldbody{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .stat{background:var(--raised);border-radius:10px;padding:10px 12px}
@@ -1125,7 +1130,7 @@ function vFood(){
     h+=`<div class="sect" style="display:flex;justify-content:space-between"><span>${l}</span><span class="num" style="letter-spacing:0">${items.length?r1(mt)+" g net · "+Math.round(mc)+" cal":""}</span></div><div class="list">`+
       items.map(({it,i})=>`<button class="row" data-act="f_edit" data-v="${i}"><div class="grow"><span class="t">${esc(it.name)}${it.brand?` <span class="muted">· ${esc(it.brand)}</span>`:""}</span><span class="s num">${r1(it.qty)} × ${esc(it.serving)} · ${Math.round(it.n.cal*it.qty)} cal · ${r1(it.n.p*it.qty)} g protein</span></div><span class="pill num ${netC(it.n)*it.qty>5?"pr":""}">${r1(netC(it.n)*it.qty)} g</span></button>`).join("")+
       `<button class="row" data-act="f_add" data-v="${m}"><div class="grow"><span class="t" style="color:var(--accent)">+ Add to ${l.toLowerCase()}</span></div></button></div>`;});
-  h+=checkinCard(k)+outlookCard()+insightsCard()+tipsCard();
+  h+=ketoCheckCard(k)+checkinCard(k)+ketoRecordCard()+outlookCard()+insightsCard()+tipsCard();
   h+=`<div class="sub">Built-in nutrition values are typical label numbers. Brands change recipes, so check your label and use "Create food from label" for anything that differs.</div>`;
   return h;
 }
@@ -1133,9 +1138,76 @@ function checkinCard(k){
   const d=day(k);const bwToday=(S.bw||[]).find(x=>x.d===k);
   const f=(id,label,val,ph,step)=>`<div class="field"><label class="lbl" for="${id}">${label}</label><input type="number" inputmode="decimal" step="${step||"any"}" id="${id}" data-fci="${id}" value="${val??""}" placeholder="${ph}"></div>`;
   return `<div class="card"><h3>Daily check-in</h3><div class="sub">Weigh in first thing in the morning. Waist once a week is the best sign of fat loss while you build muscle.</div>
-   <div class="kv">${f("ci_w","Weight (lb)",bwToday?bwToday.w:"","e.g. 201.4")}${f("ci_sleep","Sleep (hours)",d.sleep,"e.g. 7.5")}${f("ci_waist","Waist (in)",d.waist,"at belly button")}${f("ci_ket","Ketones (mmol/L)",d.ketones,"optional")}</div>
+   <div class="kv">${f("ci_w","Weight (lb)",bwToday?bwToday.w:"","e.g. 201.4")}${f("ci_sleep","Sleep (hours)",d.sleep,"e.g. 7.5")}${f("ci_waist","Waist (in)",d.waist,"at belly button")}</div>
    <div class="btns"><button class="btn primary" data-act="f_checkin">Save check-in</button><button class="btn" data-act="f_health">Sync Apple Health</button></div>
    ${S.settings.lastHealthImport?`<div class="sub">Last Apple Health import: ${new Date(S.settings.lastHealthImport).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`:""}</div>`;
+}
+/* ---------- ketosis record ---------- */
+const KMETH=[["blood","Blood meter"],["urine","Urine strip"],["breath","Breath meter"],["feel","How I feel"]];
+function ketoCheckCard(k){
+  const kt=day(k).keto||{};const ket=day(k).ketones;
+  const sugg=ket!=null&&(kt.method||"blood")==="blood"?(ket>=0.5?"in":"out"):null;
+  return `<div class="card ${kt.status==="in"?"kin":kt.status==="out"?"kout":""}"><h3>Ketosis check</h3>
+   <div class="sub">Did you test today? Mark the result and the app learns what keeps you in ketosis and what knocks you out.</div>
+   <div class="kbtns"><button class="kbtn in" data-act="f_keto" data-v="in" aria-pressed="${kt.status==="in"}"><b>✓</b> In ketosis</button><button class="kbtn out" data-act="f_keto" data-v="out" aria-pressed="${kt.status==="out"}"><b>✕</b> Not in ketosis</button></div>
+   ${kt.status?`<div class="q"><label>When did you test?</label><div class="chips"><button class="chip" data-act="f_ketoWhen" data-v="am" aria-pressed="${(kt.when||"am")==="am"}">Morning (shows yesterday's food)</button><button class="chip" data-act="f_ketoWhen" data-v="pm" aria-pressed="${kt.when==="pm"}">Evening (shows today's food)</button></div></div>
+   <div class="q"><label>How?</label><div class="chips">${KMETH.map(([m,l])=>`<button class="chip" data-act="f_ketoMeth" data-v="${m}" aria-pressed="${(kt.method||"blood")===m}">${l}</button>`).join("")}</div></div>
+   <div class="btns"><div class="field" style="flex:1"><label class="lbl" for="ketVal">Reading ${(kt.method||"blood")==="urine"?"(mmol/L from the strip color, optional)":"(mmol/L, optional)"}</label><input type="number" inputmode="decimal" step="0.1" id="ketVal" value="${ket??""}" placeholder="e.g. 0.8"></div><button class="btn" data-act="f_ketoVal" style="align-self:flex-end">Save</button><button class="btn ghost" data-act="f_keto" data-v="" style="align-self:flex-end">Clear</button></div>`:""}
+   ${sugg&&sugg!==kt.status?`<div class="ins warn">A blood reading of ${ket} mmol/L usually means ${sugg==="in"?"you <b>are</b> in ketosis (0.5 or higher)":"you're <b>not</b> in ketosis yet (below 0.5)"}.</div>`:""}
+   <div class="sub">Guide: blood 0.5–3.0 mmol/L = in ketosis. Urine strips: any pink/purple = in, but strips get less reliable after the first few weeks.</div></div>`;
+}
+function ketoData(){
+  const out=[];
+  Object.keys(S.days||{}).sort().forEach(k=>{const kt=S.days[k].keto;if(!kt||!kt.status)return;
+    const eatK=(kt.when||"am")==="pm"?k:shiftDay(k,-1);const items=(day(eatK).items||[]);
+    out.push({k,status:kt.status,eatK,items,net:items.length?totals(eatK).net:null,ket:S.days[k].ketones});});
+  return out;
+}
+function ketoRecordCard(){
+  const kd=ketoData();
+  let h=`<div class="card"><h3>Ketosis record</h3>`;
+  if(!kd.length)return h+`<div class="sub">Mark "In ketosis" or "Not in ketosis" on days you test. After a week or two the app shows which foods kept you in, which knocked you out, your personal carb limit, and how ketosis lines up with your weight.</div></div>`;
+  const last30=kd.filter(x=>x.k>=shiftDay(dayKey(),-30));const ins=last30.filter(x=>x.status==="in").length;
+  let streak=0;for(let i=kd.length-1;i>=0&&kd[i].status==="in";i--)streak++;
+  h+=`<div class="kv"><div class="stat"><div class="v num">${streak}</div><div class="k">Tests in a row in ketosis</div></div><div class="stat"><div class="v num">${last30.length?Math.round(ins/last30.length*100):0}%</div><div class="k">In ketosis (${ins} of ${last30.length} tests, 30 days)</div></div></div>`;
+  h+=ketoChart(kd);
+  // personal carb threshold
+  const withNet=kd.filter(x=>x.net!=null);const inN=withNet.filter(x=>x.status==="in").map(x=>x.net),outN=withNet.filter(x=>x.status==="out").map(x=>x.net);
+  if(inN.length&&outN.length){const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+    h+=`<div class="sub num"><b>Your carb line:</b> on days that kept you in ketosis you averaged <b>${r1(avg(inN))} g</b> net carbs (highest ${r1(Math.max(...inN))} g). Days that knocked you out averaged <b>${r1(avg(outN))} g</b> (lowest ${r1(Math.min(...outN))} g).${Math.max(...inN)<Math.min(...outN)?` Your personal limit looks to be somewhere between <b>${r1(Math.max(...inN))}</b> and <b>${r1(Math.min(...outN))} g</b>.`:" There's overlap, so something besides carbs is also in play (protein, sleep, stress, or timing)."}</div>`;}
+  else if(withNet.length)h+=`<div class="sub">Log food on the days before you test to see your personal carb line.</div>`;
+  // food analysis
+  const stat={};withNet.forEach(x=>{const seen=new Set();x.items.forEach(it=>{const key=it.name+(it.brand?" ("+it.brand+")":"");if(seen.has(key))return;seen.add(key);
+    const s=stat[key]||(stat[key]={name:key,inC:0,outC:0,net:0,n:0});s[x.status==="in"?"inC":"outC"]++;s.net+=netC(it.n)*(it.qty||1);s.n++;});});
+  const arr=Object.values(stat).map(s=>({...s,avgNet:s.net/s.n}));
+  const baseOut=withNet.length?withNet.filter(x=>x.status==="out").length/withNet.length:0;
+  const bad=arr.filter(s=>s.outC>0&&(s.outC/(s.inC+s.outC)>baseOut+0.05||s.avgNet>=5)).sort((a,b)=>(b.outC/(b.inC+b.outC))-(a.outC/(a.inC+a.outC))||b.avgNet-a.avgNet||b.outC-a.outC).slice(0,6);
+  const good=arr.filter(s=>s.inC>=2&&s.outC===0).sort((a,b)=>b.inC-a.inC).slice(0,8);
+  if(bad.length)h+=`<div class="q"><label>Showed up before you got knocked out</label>${bad.map(s=>`<div class="frow"><span class="grow">${esc(s.name)}</span><span class="pill num ${s.avgNet>=5?"pr":""}">${r1(s.avgNet)} g net</span><span class="sub num">out ${s.outC}× · in ${s.inC}×</span></div>`).join("")}<div class="sub">Ranked by how often they came before an out-of-ketosis result. Everyday foods that show up just as often on good days are left out.</div></div>`;
+  if(good.length)h+=`<div class="q"><label>Safe foods (only ever on in-ketosis days)</label><div class="chips">${good.map(s=>`<span class="pill ok">${esc(s.name)} · ${s.inC}×</span>`).join("")}</div></div>`;
+  // weight link
+  const bw=new Map((S.bw||[]).map(x=>[x.d,x.w]));const chg={in:[],out:[]};
+  kd.forEach(x=>{const w0=bw.get(x.k),w1=bw.get(shiftDay(x.k,1));if(w0!=null&&w1!=null)chg[x.status].push(w1-w0);});
+  if(chg.in.length>=2&&chg.out.length>=1){const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+    h+=`<div class="sub num"><b>Weight:</b> the morning after an in-ketosis test your weight changed ${avg(chg.in)>=0?"+":""}${r1(avg(chg.in))} lb on average, vs ${avg(chg.out)>=0?"+":""}${r1(avg(chg.out))} lb after an out-of-ketosis test. Jumps after carb days are mostly water.</div>`;}
+  return h+`</div>`;
+}
+function ketoChart(kd){
+  const n=42;const ks=[];for(let i=n-1;i>=0;i--)ks.push(shiftDay(dayKey(),-i));
+  const st=new Map(kd.map(x=>[x.k,x.status]));const bw=new Map((S.bw||[]).map(x=>[x.d,x.w]));
+  const W=600,H=230,pl=56,pr=14,pt=14,ph=150,sy=pt+ph+22;const xs=i=>pl+(W-pl-pr)*(i/(n-1));
+  const ws=ks.map(k=>bw.get(k)).filter(v=>v!=null);
+  let g="";
+  if(ws.length>=2){let lo=Math.min(...ws),hi=Math.max(...ws);if(hi-lo<2){lo-=1;hi+=1;}const yv=v=>pt+ph*(1-(v-lo)/(hi-lo));
+    [lo,(lo+hi)/2,hi].forEach(v=>{g+=`<line x1="${pl}" x2="${W-pr}" y1="${yv(v)}" y2="${yv(v)}" stroke="var(--line)"/><text x="${pl-8}" y="${yv(v)+6}" text-anchor="end" font-size="18" fill="var(--muted)">${r1(v)}</text>`;});
+    const pts=ks.map((k,i)=>bw.has(k)?[xs(i),yv(bw.get(k)),st.get(k)]:null).filter(Boolean);
+    g+=`<path d="${pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+","+p[1].toFixed(1)).join("")}" fill="none" stroke="var(--muted)" stroke-width="2"/>`;
+    g+=pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]?6:3.5}" fill="${p[2]==="in"?"var(--good)":p[2]==="out"?"var(--bad)":"var(--surface)"}" stroke="${p[2]?"none":"var(--muted)"}" stroke-width="1.5"/>`).join("");}
+  else g+=`<text x="${W/2}" y="${pt+ph/2}" text-anchor="middle" font-size="18" fill="var(--muted)">Log your weight to see it alongside ketosis</text>`;
+  const bwid=(W-pl-pr)/n-2;
+  g+=ks.map((k,i)=>`<rect x="${(xs(i)-bwid/2).toFixed(1)}" y="${sy}" width="${bwid.toFixed(1)}" height="16" rx="3" fill="${st.get(k)==="in"?"var(--good)":st.get(k)==="out"?"var(--bad)":"var(--raised)"}"/>`).join("");
+  g+=`<text x="${pl}" y="${H-4}" font-size="16" fill="var(--muted)">${fmtDate(ks[0]+"T12:00:00",{month:"short",day:"numeric"})}</text><text x="${W-pr}" y="${H-4}" text-anchor="end" font-size="16" fill="var(--muted)">Today</text><text x="${pl-8}" y="${sy+13}" text-anchor="end" font-size="15" fill="var(--muted)">Keto</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight over the last 6 weeks with ketosis results">${g}</svg><div class="legend"><span><i style="background:var(--good)"></i>In ketosis</span><span><i style="background:var(--bad)"></i>Out</span><span><i style="background:var(--raised)"></i>Not tested</span><span><i style="background:var(--muted);height:2px"></i>Weight (lb)</span></div>`;
 }
 function avgDays(n){const ks=[];for(let i=1;i<=n;i++)ks.push(shiftDay(dayKey(),-i));const logged=ks.filter(k=>(day(k).items||[]).length);
   const sum={cal:0,net:0,p:0,na:0,sug:0};logged.forEach(k=>{const t=totals(k);for(const x in sum)sum[x]+=t[x];});
@@ -1185,6 +1257,8 @@ function insightsCard(){
   const g=fg();const k=dayKey();const t=totals(k);const y=totals(shiftDay(k,-1));const a=avgDays(7);const out=[];
   const bw=(S.bw||[]).slice().sort((p,q)=>p.d.localeCompare(q.d));const lw=bw[bw.length-1],pw=bw.filter(p=>p.d<=shiftDay(dayKey(),-3)).pop();
   const up=lw&&pw&&lw.w-pw.w>=0.8;
+  {const kd=ketoData();const lk=kd[kd.length-1];if(lk&&lk.status==="out"&&lk.k>=shiftDay(k,-1)&&lk.items.length){const top=lk.items.map(it=>({n:it.name,c:netC(it.n)*(it.qty||1)})).sort((x,y)=>y.c-x.c).filter(x=>x.c>=2).slice(0,3);
+    out.push(["bad",`Out of ketosis on ${lk.k===k?"today's":"yesterday's"} test. ${top.length?`Biggest carb sources the day before: ${top.map(x=>x.n+" ("+r1(x.c)+" g)").join(", ")}.`:"Carbs were low, so check for hidden sugars, a big protein day, poor sleep or stress."}`]);}}
   if(t.net>g.net)out.push(["bad",`Over your carb limit today (${r1(t.net)} g). Expect 1–3 lb of water weight back over the next day or two as your body refills its carb stores. It's water, not fat. Get back under tomorrow.`]);
   if(y.net>g.net&&up)out.push(["warn",`Yesterday was ${r1(y.net)} g net carbs. That alone explains a jump on the scale this morning.`]);
   if(y.na>5500)out.push(["warn",`Yesterday's sodium was high (${Math.round(y.na)} mg). Salty days hold extra water for 1–2 days.`]);
@@ -1478,9 +1552,13 @@ document.addEventListener("click",ev=>{
       saveDay(k);saveProfile();closeSheet();render();break;}
     case"f_hImport":healthResult(importHealth($("#hTxt").value));break;
     case"f_hPaste":(async()=>{try{const t=await navigator.clipboard.readText();if(!t){toast("Clipboard is empty. Run the Shortcut first.");return;}healthResult(importHealth(t));}catch(e){toast("Couldn't read the clipboard here. Long-press the box below and tap Paste.");$("#hTxt")?.focus();}})();break;
+    case"f_keto":{const d=day(k,true);if(!v){delete d.keto;}else d.keto={...(d.keto||{when:"am",method:"blood"}),status:v,at:Date.now()};saveDay(k);render();if(v)toast(v==="in"?"Marked: in ketosis":"Marked: not in ketosis");break;}
+    case"f_ketoWhen":{const d=day(k,true);d.keto={...(d.keto||{}),when:v};saveDay(k);render();break;}
+    case"f_ketoMeth":{const d=day(k,true);d.keto={...(d.keto||{}),method:v};saveDay(k);render();break;}
+    case"f_ketoVal":{const d=day(k,true);const x=parseFloat($("#ketVal").value);if(isNaN(x))delete d.ketones;else d.ketones=x;saveDay(k);render();toast("Reading saved");break;}
     case"f_checkin":{const num=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?null:x;};const d=day(k,true);
       const w=num("ci_w");if(w){S.bw=(S.bw||[]).filter(x=>x.d!==k);S.bw.push({d:k,w:r1(w)});saveProfile();}
-      ["sleep","waist","ketones"].forEach((f,i)=>{const val=num(["ci_sleep","ci_waist","ci_ket"][i]);if(val!=null)d[f]=val;else delete d[f];});
+      ["sleep","waist"].forEach((f,i)=>{const val=num(["ci_sleep","ci_waist"][i]);if(val!=null)d[f]=val;else delete d[f];});
       saveDay(k);toast("Check-in saved");render();break;}
   }
 });
@@ -1506,6 +1584,8 @@ function vToday(){
     tile("t_goTrain",doneW.length?"Done":S.draft?"Going":(nx?esc(nx.name.split(" · ")[0]):"–"),"Workout",doneW.length?esc(doneW[0].title||""):S.draft?"In progress":"Up next",doneW.length?"good":"")+
     tile("t_goFood",r1(Math.max(0,g.net-t.net))+" g","Net carbs left",`${r1(t.net)} of ${g.net} used`,t.net>g.net?"bad":t.net>=g.net*0.75?"warn":"good")+
     tile("t_goFood",a?a.steps.toLocaleString():"–","Steps",a?`${r1(a.mi)} mi · ${a.kcal} cal`:"Sync on Food tab",a&&a.steps>=(g.steps||8000)?"good":"")+
+    (()=>{const kt=(day(k).keto||{}).status;const kd=ketoData();let st=0;for(let i=kd.length-1;i>=0&&kd[i].status==="in";i--)st++;
+      return tile("t_goFood",kt==="in"?"In":kt==="out"?"Out":"–","Ketosis",kt?(st?`${st} test${st===1?"":"s"} in a row`:"see what knocked you out"):"Not tested today",kt==="in"?"good":kt==="out"?"bad":"");})()+
     tile("t_goFood",Math.round(t.p)+" g","Protein",`goal ${g.p} g`,t.p>=g.p*0.9?"good":"")+
     tile("t_goFood",(d.water||0)+" oz","Water",`goal ${g.water} oz`,(d.water||0)>=g.water?"good":"")+
     tile("t_goFood",lw?r1(lw.w):"–","Weight (lb)",lw&&wk?`${lw.w-wk.w<=0?"−":"+"}${r1(Math.abs(lw.w-wk.w))} this week`:lw?fmtDate(lw.d+"T12:00:00",{month:"short",day:"numeric"}):"Log on Food tab",lw&&wk&&lw.w<wk.w?"good":"")+
