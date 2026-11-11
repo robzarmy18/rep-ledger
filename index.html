@@ -1214,7 +1214,7 @@ function vFood(){
   const w=d.water||0;
   h+=`<div class="card"><div class="top"><div class="grow"><h3>Water</h3><div class="sub num">${w} / ${g.water} oz</div></div><button class="btn" data-act="f_water" data-v="-8">−8</button><button class="btn primary" data-act="f_water" data-v="8">+8 oz</button><button class="btn primary" data-act="f_water" data-v="16">+16</button></div><div class="bar"><i style="width:${Math.min(100,w/g.water*100)}%;background:#4aa8ff"></i></div></div>`;
   h+=`<button class="btn block" data-act="f_recipes">Recipe vault${(S.recipes||[]).length?` (${S.recipes.length})`:""}</button>`;
-  if(window.REP_PWA)h+=`<button class="btn primary block" data-act="f_scanQuick">Scan a barcode</button>`;
+  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scanQuick" style="flex:1">Scan a barcode</button>`:""}<button class="btn primary" data-act="f_labelQuick" style="flex:1">Photo of a nutrition label</button></div>`;
   // meals
   MEALS.forEach(([m,l])=>{const items=(d.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.meal===m);
     const mt=items.reduce((a,x)=>a+netC(x.it.n)*(x.it.qty||1),0);const mc=items.reduce((a,x)=>a+(x.it.n.cal||0)*(x.it.qty||1),0);
@@ -1400,7 +1400,7 @@ function vFoodAdd(){
   let h=header("Add to "+meal[1].toLowerCase(),"","f_back");
   h+=`<input type="search" id="fq" placeholder="Search foods, brands, spices…" value="${esc(V.fq||"")}" aria-label="Search foods" autocomplete="off">`;
   h+=`<div class="chips">${FOOD_CATS.map(([c,l])=>`<button class="chip" data-act="f_cat" data-v="${c}" aria-pressed="${cat===c}" style="padding:6px 11px;font-size:13px">${l}</button>`).join("")}</div>`;
-  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn" data-act="f_custom">Create food from label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
+  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn primary" data-act="f_label">Read a nutrition label (photo)</button><button class="btn" data-act="f_custom">Type in a label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
   const match=f=>(!q||(f.name+" "+f.brand).toLowerCase().includes(q))&&(!cat||f.cat===cat);
   const row=(f,src,i)=>`<button class="row" data-act="f_pick" data-src="${src}" data-v="${esc(i)}"><div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${Math.round(f.n.cal)} cal · ${r1(f.n.p)} g protein · ${r1(f.n.sug)} g sugar</span></div><span class="pill num ${netC(f.n)>5?"pr":"ok"}">${r1(netC(f.n))} g net</span></button>`;
   const hf=histFoods();
@@ -1439,7 +1439,7 @@ function parseOFF(p){
 const UW={g:1,oz:28.3495,lb:453.592,kg:1000};
 const UV={ml:1,"fl oz":29.5735,cup:236.588,tbsp:14.787,tsp:4.929,L:1000};
 const UNITS=["g","oz","lb","kg","fl oz","ml","cup","tbsp","tsp","L"];
-const USTEP={g:10,oz:1,lb:0.25,kg:0.1,"fl oz":1,ml:25,cup:0.25,tbsp:1,tsp:1,L:0.25,srv:0.25};
+const USTEP={pkg:0.25,g:10,oz:1,lb:0.25,kg:0.1,"fl oz":1,ml:25,cup:0.25,tbsp:1,tsp:1,L:0.25,srv:0.25};
 const LIQ=new Set(["drink","energy","alcohol"]);
 const ufam=u=>UW[u]?"w":UV[u]?"v":null;
 function normUnit(u,cat){u=(u||"").toLowerCase().replace(/\./g,"").replace(/\s+/g," ").trim();
@@ -1450,16 +1450,18 @@ function parseNum(t){t=t.trim();let m=t.match(/^(\d+)\s+(\d+)\/(\d+)$/);if(m)ret
 function parseServing(str,cat){if(!str)return null;
   const re=/(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.?\d+)\s*(fl\.?\s?oz|ounces?|oz|lbs?|pounds?|grams?|g|kg|ml|milliliters?|cups?|tbsp|tablespoons?|tsp|teaspoons?|l)\b/i;
   const par=(str.match(/\(([^)]*)\)/)||[])[1];
-  for(const t of [par,str]){if(!t)continue;const m=t.match(re);if(m){const a=parseNum(m[1]),u=normUnit(m[2],cat);if(a>0&&u)return{a,u};}}
+  for(const t of [str.replace(/\([^)]*\)/g," "),par]){if(!t)continue;const m=t.match(re);if(m){const a=parseNum(m[1]),u=normUnit(m[2],cat);if(a>0&&u)return{a,u};}}
   return null;}
 function szOf(f){return f.sz&&f.sz.a>0&&ufam(f.sz.u)?f.sz:parseServing(f.serving,f.cat);}
 /* units this food can be entered in: same family as its serving, plus the other family for drinks (1 g ≈ 1 ml) */
 function unitsFor(f){const sz=szOf(f);if(!sz)return[];const fam=ufam(sz.u);return UNITS.filter(u=>ufam(u)===fam||(LIQ.has(f.cat)||sz.u==="fl oz"||sz.u==="ml")&&ufam(u));}
 function toGramsOrMl(a,u){return UW[u]?a*UW[u]:a*UV[u];}
-function toServings(f,a,u){a=+a||0;if(!u||u==="srv")return a;const sz=szOf(f);if(!sz)return a;return toGramsOrMl(a,u)/toGramsOrMl(sz.a,sz.u);}
-function fromServings(f,q,u){if(!u||u==="srv")return q;const sz=szOf(f);if(!sz)return q;return q*toGramsOrMl(sz.a,sz.u)/toGramsOrMl(1,u);}
+function toServings(f,a,u){a=+a||0;if(!u||u==="srv")return a;if(u==="pkg")return a*(+f.spc||1);const sz=szOf(f);if(!sz)return a;return toGramsOrMl(a,u)/toGramsOrMl(sz.a,sz.u);}
+function fromServings(f,q,u){if(!u||u==="srv")return q;if(u==="pkg")return q/(+f.spc||1);const sz=szOf(f);if(!sz)return q;return q*toGramsOrMl(sz.a,sz.u)/toGramsOrMl(1,u);}
 const r2=x=>Math.round(x*100)/100;
-function amtTxt(it){const q=it.qty||1;return it.unit&&it.unit!=="srv"&&it.amt!=null?`${r2(it.amt)} ${it.unit}`:`${r1(q)} × ${it.serving}`;}
+function amtTxt(it){const q=it.qty||1;if(it.unit==="pkg"&&it.amt!=null)return `${pkgFrac(it.amt)} of the package`;return it.unit&&it.unit!=="srv"&&it.amt!=null?`${r2(it.amt)} ${it.unit}`:`${r1(q)} × ${it.serving}`;}
+function pkgFrac(a){const m={0.25:"¼",0.33:"⅓",0.5:"½",0.67:"⅔",0.75:"¾",1:"all"};return m[r2(a)]||r2(a);}
+function withSaved(food){const cf=(S.customFoods||[]).find(x=>foodKey(x)===foodKey(food));return cf?{...food,spc:food.spc??cf.spc,pkgPrice:food.pkgPrice??cf.pkgPrice,sz:food.sz||cf.sz}:food;}
 function foodKey(f){return(f.name+"|"+(f.brand||"")+"|"+(f.serving||"")).toLowerCase();}
 function rememberedCost(f){const m=S.money;return m&&m.foodCost?m.foodCost[foodKey(f)]:null;}
 function itemCost(it){return it.cps!=null?it.cps*(it.qty||1):null;}
@@ -1467,18 +1469,18 @@ function dayCost(k){let tot=0,n=0,missing=0;(day(k).items||[]).forEach(it=>{cons
 function curCps(){const e=$("#fcost");if(!e)return null;const x=parseFloat(e.value);return isNaN(x)?null:x;}
 function curUnit(){return(V.fpending&&V.fpending.unit)||"srv";}
 function curQty(){const f=V.fpending.food;return toServings(f,$("#fqty").value,curUnit());}
-function qtyChips(u){return(u==="srv"?[0.5,1,1.5,2,3]:u==="g"?[50,100,150,200,250]:u==="oz"?[2,4,6,8,12]:u==="lb"?[0.25,0.5,0.75,1,1.5]:u==="fl oz"?[4,8,12,16,20]:u==="ml"?[100,250,355,500]:u==="cup"?[0.25,0.5,1,1.5,2]:u==="kg"?[0.25,0.5,1]:u==="L"?[0.5,1,2]:[1,2,3,4]).map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");}
-function amountSheet(food,editIdx,keepUnit){
+function qtyChips(u){if(u==="pkg")return[[0.25,"¼"],[0.33,"⅓"],[0.5,"½"],[0.75,"¾"],[1,"All"]].map(([x,l])=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${l}</button>`).join("");return(u==="srv"?[0.5,1,1.5,2,3]:u==="g"?[50,100,150,200,250]:u==="oz"?[2,4,6,8,12]:u==="lb"?[0.25,0.5,0.75,1,1.5]:u==="fl oz"?[4,8,12,16,20]:u==="ml"?[100,250,355,500]:u==="cup"?[0.25,0.5,1,1.5,2]:u==="kg"?[0.25,0.5,1]:u==="L"?[0.5,1,2]:[1,2,3,4]).map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");}
+function amountSheet(food,editIdx,keepUnit){food=withSaved(food);
   const it=editIdx!=null?day(V.fday||dayKey()).items[editIdx]:null;
-  const us=unitsFor(food);const lastU=((S.settings.lastUnit||{})[foodKey(food)]);
+  const us=[...(food.spc>0?["pkg"]:[]),...unitsFor(food)];const lastU=((S.settings.lastUnit||{})[foodKey(food)]);
   let unit=keepUnit||(it?(it.unit||"srv"):(lastU||"srv"));if(unit!=="srv"&&!us.includes(unit))unit="srv";
   V.fpending={food,editIdx,unit};
   const qty=it?it.qty:(unit==="srv"?1:toServings(food,fromServings(food,1,unit),unit));
   const amt=it&&it.unit===unit&&it.amt!=null?it.amt:r2(fromServings(food,qty,unit));
   const cps=it?(it.cps??null):rememberedCost(food);const sz=szOf(food);const st=USTEP[unit]||1;
   sheet(`<h2>${esc(food.name)}</h2><div class="sub">${esc(food.brand||"")}${food.brand?" · ":""}1 serving = ${esc(food.serving)}${sz&&!new RegExp("\\b"+sz.u.replace(" ","\\s?")+"\\b","i").test(food.serving)?` (${r2(sz.a)} ${sz.u})`:""}</div>
-   <div class="q"><label>Enter amount in</label><div class="chips"><button class="chip" data-act="f_unit" data-v="srv" aria-pressed="${unit==="srv"}">Servings</button>${us.map(u=>`<button class="chip" data-act="f_unit" data-v="${u}" aria-pressed="${unit===u}">${u}</button>`).join("")}${us.length?"":(food.recipeId?"":`<button class="chip" data-act="f_editNut">Set serving weight to use oz / g / lb…</button>`)}</div></div>
-   <div class="top"><button class="btn" data-act="f_qty" data-v="-${st}">−${st===0.25?"¼":st}</button><div class="grow field"><label class="lbl" for="fqty">${unit==="srv"?"Servings":"Amount ("+unit+")"}</label><input type="number" inputmode="decimal" step="any" min="0" id="fqty" value="${unit==="srv"?r2(qty):amt}" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="f_qty" data-v="${st}">+${st===0.25?"¼":st}</button></div>
+   <div class="q"><label>Enter amount in</label><div class="chips"><button class="chip" data-act="f_unit" data-v="srv" aria-pressed="${unit==="srv"}">Servings</button>${us.map(u=>`<button class="chip" data-act="f_unit" data-v="${u}" aria-pressed="${unit===u}">${u==="pkg"?"Part of package":u}</button>`).join("")}${unitsFor(food).length?"":(food.recipeId?"":`<button class="chip" data-act="f_editNut">Set serving weight to use oz / g / lb…</button>`)}</div></div>
+   <div class="top"><button class="btn" data-act="f_qty" data-v="-${st}">−${st===0.25?"¼":st}</button><div class="grow field"><label class="lbl" for="fqty">${unit==="srv"?"Servings":unit==="pkg"?`How much of the package (1 = all ${r2(food.spc)} servings)`:"Amount ("+unit+")"}</label><input type="number" inputmode="decimal" step="any" min="0" id="fqty" value="${unit==="srv"?r2(qty):amt}" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="f_qty" data-v="${st}">+${st===0.25?"¼":st}</button></div>
    <div class="chips">${qtyChips(unit)}${unit==="srv"&&food.recipeId&&recipeById(food.recipeId)?`<button class="chip" data-act="f_qtyset" data-v="${recipeById(food.recipeId).servings}">Whole batch</button>`:""}</div>
    <div class="field"><label class="lbl" for="fcost">Cost per serving ($, optional)</label><input type="number" inputmode="decimal" step="0.01" min="0" id="fcost" value="${cps??""}" placeholder="e.g. 1.25"></div>
    <div id="fprev">${amountPreview(food,qty,cps)}</div>
@@ -1490,16 +1492,20 @@ function amountPreview(food,q,cps){const n=food.n;q=+q||0;const u=V.fpending&&V.
   return `${u&&u!=="srv"?`<div class="sub num">= <b>${r2(q)} serving${r2(q)===1?"":"s"}</b> of ${esc(food.serving)}</div>`:""}${cps!=null?`<div class="sub num">Cost for ${r1(q)} serving${q===1?"":"s"}: <b>${$$(cps*q)}</b></div>`:""}<div class="kv"><div class="stat"><div class="v num">${r1(netC(n)*q)} g</div><div class="k">Net carbs</div></div><div class="stat"><div class="v num">${Math.round(n.cal*q)}</div><div class="k">Calories</div></div>
   <div class="stat"><div class="v num">${r1(n.p*q)} g</div><div class="k">Protein</div></div><div class="stat"><div class="v num">${r1(n.sug*q)} g</div><div class="k">Sugar</div></div></div>
   <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · sugar alcohols ${r1(n.sa*q)} g`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
-function customSheet(barcode,base,editIdx){V.fbarcode=barcode||null;V.fedit=base?{base,editIdx}:null;
-  const n=base?base.n:{};const sz=base?szOf(base):null;const cnt=base&&!sz?(String(base.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]:null;
-  const desc=base&&!sz?base.serving:"";
+function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fedit=base?{base,editIdx}:null;V.fpre=pre||null;
+  const src=base||pre||null;
+  const n=src?src.n:{};const sz=src?szOf(src):null;const cnt=src&&!sz?(String(src.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]:null;
+  const desc=src&&!sz?src.serving||"":"";const spc=src?src.spc:null;const pp=src?src.pkgPrice:null;
   const f=(id,l,ph,val,txt)=>`<div class="field"><label class="lbl" for="${id}">${l}</label><input type="${txt?"text":"number"}" inputmode="${txt?"text":"decimal"}" ${txt?"":'step="any"'} id="${id}" placeholder="${ph}" value="${val==null?"":esc(String(val))}"></div>`;
   const isCustom=base&&String(base.id||"").startsWith("c");
-  sheet(`<h2>${base?"Edit "+esc(base.name):"Create food from label"}</h2><div class="sub">${base?`Change any number that doesn't match your label. ${isCustom?"Your saved food is updated.":"Your version replaces the built-in one from now on."}`:`${barcode?`Barcode ${esc(barcode)} isn't in the database yet. `:""}Copy the numbers from the Nutrition Facts panel for one serving.${barcode?" Next time you scan it, it fills in automatically.":""}`}</div>
-   ${f("cf_name","Name","e.g. Ribeye steak",base?base.name:"",1)}${f("cf_brand","Brand (optional)","e.g. Wendy's",base?base.brand:"",1)}
+  sheet(`<h2>${base?"Edit "+esc(base.name):pre?"Check what was read":"Create food from label"}</h2>${pre?labelReadNote(pre):""}<div class="sub" ${pre?'hidden':''}>${base?`Change any number that doesn't match your label. ${isCustom?"Your saved food is updated.":"Your version replaces the built-in one from now on."}`:`${barcode?`Barcode ${esc(barcode)} isn't in the database yet. `:""}Copy the numbers from the Nutrition Facts panel for one serving.${barcode?" Next time you scan it, it fills in automatically.":""}`}</div>
+   ${f("cf_name","Name","e.g. Rotisserie chicken",src?src.name:"",1)}${f("cf_brand","Brand / store (optional)","e.g. Walmart",src?src.brand:"",1)}
    <div class="q"><label>One serving is</label><div class="btns">${f("cf_sa_amt","Amount","e.g. 6",sz?r2(sz.a):cnt)}<div class="field" style="flex:1"><label class="lbl" for="cf_unit">Unit</label><select id="cf_unit">${["each",...UNITS].map(u=>`<option ${(sz?sz.u:"each")===u?"selected":""}>${u}</option>`).join("")}</select></div></div>
-   ${f("cf_serv","Description (optional)","e.g. cooked, 1 can, 1 patty",desc&&!sz?desc.replace(/^\s*\d*\.?\d+\s*/,""):(base&&sz?String(base.serving||"").replace(/^[^a-z]*\d[^a-z]*(fl\.?\s?oz|oz|lbs?|g|kg|ml|cups?|tbsp|tsp|l)\b\s*/i,""):""),1)}
+   ${f("cf_serv","Description (optional)","e.g. cooked, 1 can, 1 patty",desc&&!sz?desc.replace(/^\s*\d*\.?\d+\s*/,""):(src&&sz?String(src.serving||"").replace(/^[^a-z]*\d[^a-z]*(fl\.?\s?oz|oz|lbs?|g|kg|ml|cups?|tbsp|tsp|l)\b\s*/i,""):""),1)}
    <div class="sub">Pick oz, g, lb, fl oz, etc. so you can later log any exact amount (8 oz of a 6 oz-serving steak = 1.33 servings, calculated for you).</div></div>
+   <div class="q"><label>The whole package</label><div class="btns">${f("cf_spc","Servings per package","e.g. 7",spc)}${f("cf_pp","Price paid ($)","e.g. 4.98",pp)}</div>
+   <div class="sub" id="cf_cpsNote">${spc>0&&pp>0?`= ${$$(pp/spc)} per serving`:"Add both and the app works out the cost per serving, and you can log a fraction of the package (like ¼ of the chicken)."}</div>
+   ${base?"":`<label class="chk"><input type="checkbox" id="cf_buy" ${pre?"checked":""}> Also add the price to this week's purchases</label><div class="field"><label class="lbl" for="cf_store">Store</label><select id="cf_store">${allStores().map(st=>`<option ${st===(src&&src.brand)||(!(src&&src.brand)&&st==="Walmart")?"selected":""}>${esc(st)}</option>`).join("")}</select></div>`}</div>
    <div class="kv">${f("cf_cal","Calories","0",n.cal)}${f("cf_c","Total carbs (g)","0",n.c)}${f("cf_fib","Fiber (g)","0",n.fib)}${f("cf_sug","Total sugars (g)","0",n.sug)}${f("cf_sa","Sugar alcohols (g)","0",n.sa)}${f("cf_p","Protein (g)","0",n.p)}${f("cf_f","Fat (g)","0",n.f)}${f("cf_na","Sodium (mg)","0",n.na)}</div>
    ${base&&editIdx!=null?`<label class="chk"><input type="checkbox" id="cf_thisLog" checked> Update this entry in your log</label>`:""}
    ${base?`<label class="chk"><input type="checkbox" id="cf_pastLogs"> Also fix every past day I logged this food</label>`:""}
@@ -1512,6 +1518,76 @@ function goalsSheet(){const g=fg();const f=(id,l,v)=>`<div class="field"><label 
   <div class="kv">${f("g_net","Net carbs max (g)",g.net)}${f("g_sug","Sugar max (g)",g.sug)}${f("g_cal","Calories",g.cal)}${f("g_p","Protein (g)",g.p)}${f("g_na","Sodium target (mg)",g.na)}${f("g_water","Water (oz)",g.water)}${f("g_h","Height (inches)",g.height)}</div>
   <div class="btns"><button class="btn primary" data-act="f_goalsSave">Save goals</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
 
+
+/* ---------- nutrition label from a photo: read on the phone (Tesseract OCR), no upload, no camera permission ---------- */
+let OCRW=null,OCRP=null;
+function loadScript(src){return new Promise((res,rej)=>{const sc=document.createElement("script");sc.src=src;sc.onload=res;sc.onerror=rej;document.head.appendChild(sc);});}
+async function ocrWorker(){
+  if(OCRW)return OCRW;
+  const abs=u=>new URL(u,location.href).href;const local=!!window.REP_PWA;
+  if(!window.Tesseract)await loadScript(local?"vendor/tesseract/tesseract.min.js":"https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+  const opts={logger:m=>OCRP&&OCRP(m)};
+  if(local)Object.assign(opts,{workerPath:abs("vendor/tesseract/worker.min.js"),corePath:abs("vendor/tesseract/core"),langPath:abs("vendor/tesseract/lang")});
+  OCRW=await Tesseract.createWorker("eng",1,opts);
+  await OCRW.setParameters({tessedit_pageseg_mode:"6",preserve_interword_spaces:"1"});
+  return OCRW;}
+function prepImage(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{const mx=Math.max(img.width,img.height);const sc=mx<1600?1600/mx:mx>2400?2400/mx:1;const w=Math.round(img.width*sc),h=Math.round(img.height*sc);
+    const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.drawImage(img,0,0,w,h);
+    const d=x.getImageData(0,0,w,h),p=d.data;let lo=255,hi=0;const g=new Uint8ClampedArray(w*h);
+    for(let i=0,j=0;i<p.length;i+=4,j++){const v=0.299*p[i]+0.587*p[i+1]+0.114*p[i+2];g[j]=v;}
+    const hist=new Array(256).fill(0);g.forEach(v=>hist[v|0]++);let acc=0;for(let v=0;v<256;v++){acc+=hist[v];if(acc>g.length*0.02){lo=v;break;}}acc=0;for(let v=255;v>=0;v--){acc+=hist[v];if(acc>g.length*0.02){hi=v;break;}}
+    const rng=Math.max(1,hi-lo);for(let i=0,j=0;i<p.length;i+=4,j++){const v=Math.max(0,Math.min(255,(g[j]-lo)*255/rng));p[i]=p[i+1]=p[i+2]=v;}
+    x.putImageData(d,0,0);res({canvas:c,url});};
+  img.onerror=()=>rej(new Error("img"));img.src=url;});}
+function parseLabel(raw){
+  let t=String(raw||"").replace(/\r/g,"").replace(/[|]/g," ").replace(/[“”]/g,'"');
+  // common OCR slips on labels: O→0 and l/I→1 right before g / mg
+  t=t.replace(/(^|[\s(])[Oo](?=\s?m?g\b)/g,"$10").replace(/(^|[\s(])[lI](?=\s?m?g\b)/g,"$11").replace(/(\d)\s*[oO](?=\s?m?g\b)/g,"$10").replace(/(\d),(\d)\s*g\b/g,"$1.$2g")
+    .replace(/(\d)\s*0z\b/gi,"$1 oz").replace(/\((\d+)9\)/g,"($1g)");
+  // "g" is often read as "9" (8g -> 89): if a gram amount has no unit, drop the trailing 9 before the % column or line end
+  const g9=lbl=>{const m=t.toLowerCase().match(new RegExp(lbl+"\\s*(\\d+(?:\\.\\d+)?)9(?=\\s|$)","m"));return m?parseFloat(m[1]):null;};
+  const L=t.toLowerCase();
+  const num=re=>{const m=L.match(re);return m?parseFloat(m[1]):null;};
+  const n={};let found=0;const set=(k,v)=>{if(v!=null&&!isNaN(v)){n[k]=v;found++;}};
+  // calories: the first number after "calories" that isn't "calories from fat"
+  let cal=null;const cre=/calories(?!\s*from)[^\d\n]{0,25}\n?[^\d\n]{0,10}(\d{1,4})/g;let cm;while((cm=cre.exec(L))){cal=parseFloat(cm[1]);break;}set("cal",cal);
+  set("f",num(/total\s*fat\s*(\d+(?:\.\d+)?)\s*g/)??g9("total\\s*fat"));
+  set("na",num(/sodium\s*(\d+(?:\.\d+)?)\s*mg/));
+  set("c",num(/(?:total\s*)?carb[a-z]*\.?\s*(\d+(?:\.\d+)?)\s*g/)??g9("carb[a-z]*\\.?"));
+  set("fib",num(/(?:dietary\s*)?fib(?:er|re)\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/));
+  set("sa",num(/sugar\s*alcohols?\s*(\d+(?:\.\d+)?)\s*g/));
+  const L2=L.replace(/includes?\s*\d+(?:\.\d+)?\s*g\s*added\s*sugars?/g," ").replace(/sugar\s*alcohols?\s*\d+(?:\.\d+)?\s*g/g," ");
+  {const m=L2.match(/(?:total\s*)?sugars?\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/);set("sug",m?parseFloat(m[1]):null);}
+  set("p",num(/protein\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/)??g9("protein"));
+  let servTxt=(t.match(/serving\s*size\s*[:\-]?\s*([^\n]+)/i)||[])[1]||"";servTxt=servTxt.replace(/\s{2,}.*$/,"").replace(/[^\w\s()./,%-]+$/,"").trim();
+  let spc=num(/(\d+(?:\.\d+)?)\s*servings?\s*per\s*(?:container|package|pack)/)??num(/servings?\s*per\s*(?:container|package|pack)\s*[:\-]?\s*(?:about|approx\.?)?\s*(\d+(?:\.\d+)?)/);
+  const sz=parseServing(servTxt,"");
+  return{serving:servTxt||"1 serving",sz,spc,n:{cal:n.cal||0,c:n.c||0,fib:n.fib||0,sug:n.sug||0,sa:n.sa||0,p:n.p||0,f:n.f||0,na:n.na||0},found,got:Object.keys(n)};}
+function labelReadNote(pre){const miss=["cal","f","c","p","na"].filter(k=>!pre.got||!pre.got.includes(k)).map(k=>({cal:"calories",f:"fat",c:"carbs",p:"protein",na:"sodium"})[k]);
+  return `${pre.img?`<img src="${pre.img}" alt="Your label photo" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#fff">`:""}
+   <div class="ins ${miss.length?"warn":"info"}">${pre.found?`Read ${pre.found} value${pre.found===1?"":"s"} from your ${pre.src==="paste"?"text":"photo"}. Check each number against the label before saving.`:"Couldn't make out the numbers. Fill them in below, or try a closer, flatter photo in good light."}${miss.length&&pre.found?` Not found: <b>${miss.join(", ")}</b>.`:""}</div>
+   ${pre.raw?`<details class="fold"><summary>Text that was read<span class="chev">⌄</span></summary><div class="foldbody"><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(pre.raw)}</pre></div></details>`:""}`;}
+function labelSheet(){
+  sheet(`<h2>Read a nutrition label</h2><div class="sub">Take a photo straight on, with the whole Nutrition Facts panel filling the picture. The text is read on your phone; nothing is uploaded.</div>
+   <label class="btn primary block" style="text-align:center">Take or choose a photo<input type="file" accept="image/*" id="lblFile" hidden></label>
+   <div class="sub" id="lblMsg"></div><div class="bar" id="lblBar" style="display:none"><i style="width:0%"></i></div>
+   <button class="btn block" data-act="f_labelPaste">Paste the label text instead</button>
+   <div class="sub">Tip: in the iPhone Photos app, press and hold the label text (Live Text) → Select All → Copy, then use "Paste the label text instead". It's very accurate.</div>
+   <button class="btn" data-act="closeSheetBtn">Cancel</button>`);}
+function pasteLabelSheet(){sheet(`<h2>Paste label text</h2><textarea id="lblTxt" placeholder="Serving size 3 oz (84g)\nCalories 140\nTotal Fat 8g\n…" style="min-height:180px"></textarea>
+  <div class="btns"><button class="btn primary" data-act="f_labelParse">Read it</button><button class="btn" data-act="f_label">Back</button></div>`);}
+async function readLabelPhoto(file){
+  const msg=t=>{const m=$("#lblMsg");if(m)m.textContent=t;};const bar=$("#lblBar");if(bar)bar.style.display="";
+  const prog=v=>{const b=$("#lblBar i");if(b)b.style.width=Math.round(v*100)+"%";};
+  try{msg("Getting the photo ready…");prog(0.05);const {canvas,url}=await prepImage(file);
+    OCRP=m=>{if(m.status==="recognizing text"){msg("Reading the label… "+Math.round(m.progress*100)+"%");prog(0.3+0.7*m.progress);}else if(/load|initializ/.test(m.status||"")){msg("Loading the label reader (first time only)…");prog(0.1+0.2*(m.progress||0));}};
+    const w=await ocrWorker();const r=await w.recognize(canvas);OCRP=null;
+    const txt=r.data.text||"";const p=parseLabel(txt);
+    customSheet(null,null,null,{...p,raw:txt,img:url,src:"photo"});
+  }catch(e){OCRP=null;msg("Couldn't read the photo here. Use \"Paste the label text instead\" or type the numbers in.");prog(0);}
+}
+document.addEventListener("change",ev=>{if(ev.target.id==="lblFile"&&ev.target.files&&ev.target.files[0])readLabelPhoto(ev.target.files[0]);});
 
 /* ---------- barcode scanning (installed app) ---------- */
 let SCAN=null;
@@ -1694,7 +1770,7 @@ document.addEventListener("click",ev=>{
     case"f_cat":V.fcat=V.fcat===v?null:v;render();break;
     case"f_online":onlineSearch((V.fq||"").trim());break;
     case"f_pick":{const src=b.dataset.src;const food=src==="db"?allFoods().find(f=>f.id===v):src==="recent"?S.recentFoods[+v]:src==="hist"?histFoods()[+v].food:V.fonline[+v];if(food)amountSheet(JSON.parse(JSON.stringify(food)),null);break;}
-    case"f_edit":{const it=day(k).items[+v];amountSheet({name:it.name,brand:it.brand,serving:it.serving,sz:it.sz,n:it.n,cat:it.cat},+v);break;}
+    case"f_edit":{const it=day(k).items[+v];amountSheet({name:it.name,brand:it.brand,serving:it.serving,sz:it.sz,spc:it.spc,n:it.n,cat:it.cat},+v);break;}
     case"f_qty":{const i=$("#fqty");i.value=Math.max(0,r2((+i.value||0)+(+v)));$("#fprev").innerHTML=amountPreview(V.fpending.food,curQty(),curCps());break;}
     case"f_qtyset":{const i=$("#fqty");i.value=v;$("#fprev").innerHTML=amountPreview(V.fpending.food,curQty(),curCps());break;}
     case"f_unit":{const p=V.fpending;const q=curQty();const cps=curCps();p.unit=v;const i=$("#fqty");const sheetEl=i.closest(".sheet")||document;
@@ -1702,7 +1778,7 @@ document.addEventListener("click",ev=>{
     case"f_editNut":{const p=V.fpending;customSheet(p.food.barcode,p.food,p.editIdx);break;}
     case"f_meal":V.fmeal=v;document.querySelectorAll("[data-act=f_meal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===v));break;
     case"f_save":{const p=V.fpending;const q=curQty();if(!(q>0)){toast("Enter how much you had");break;}const d=day(k,true);const cps=curCps();const u=curUnit();const amt=+$("#fqty").value;
-      const setAmt=it=>{it.qty=Math.round(q*10000)/10000;if(u!=="srv"){it.amt=amt;it.unit=u;}else{delete it.amt;delete it.unit;}if(p.food.sz)it.sz=p.food.sz;};
+      const setAmt=it=>{it.qty=Math.round(q*10000)/10000;if(u!=="srv"){it.amt=amt;it.unit=u;}else{delete it.amt;delete it.unit;}if(p.food.sz)it.sz=p.food.sz;if(p.food.spc)it.spc=p.food.spc;};
       if(p.editIdx!=null){const it=d.items[p.editIdx];setAmt(it);if(cps!=null)it.cps=Math.round(cps*100)/100;else delete it.cps;}
       else{const f=p.food;const it={uid:uidGen(),name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",meal:V.fmeal||"snack",at:Date.now()};setAmt(it);if(cps!=null)it.cps=Math.round(cps*100)/100;d.items.push(it);addRecent({name:f.name,brand:f.brand||"",serving:f.serving,sz:f.sz,n:f.n,cat:f.cat||"",barcode:f.barcode||undefined});}
       S.settings.lastUnit={...(S.settings.lastUnit||{}),[foodKey(p.food)]:u};saveProfile();
@@ -1711,16 +1787,24 @@ document.addEventListener("click",ev=>{
     case"f_del":{day(k).items.splice(V.fpending.editIdx,1);saveDay(k);closeSheet();render();break;}
     case"f_addFromMoney":{const h=new Date().getHours();V.fmeal=v||(h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack");V.fq="";V.fcat=null;V.fonline=null;V.fret="money";go("foodAdd");break;}
     case"f_custom":customSheet();break;
+    case"f_label":labelSheet();break;
+    case"f_labelQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";V.fret=null;labelSheet();break;}
+    case"f_labelPaste":pasteLabelSheet();break;
+    case"f_labelParse":{const txt=$("#lblTxt").value;if(!txt.trim()){toast("Paste the label text first");break;}const r=parseLabel(txt);customSheet(null,null,null,{...r,raw:txt,src:"paste"});break;}
     case"f_scan":openScanner();break;
     case"f_scanQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";openScanner();break;}
     case"f_scanType":lookupBarcode($("#scanCode").value);break;
     case"f_customBack":{const e=V.fedit;V.fedit=null;amountSheet(e.base,e.editIdx);break;}
     case"f_customSave":{const val=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?0:x;};const name=$("#cf_name").value.trim();if(!name){toast("Give the food a name");break;}
+      const spcV=parseFloat($("#cf_spc").value),ppV=parseFloat($("#cf_pp").value);
       const e=V.fedit;const base=e&&e.base;const sa=parseFloat($("#cf_sa_amt").value);const su=$("#cf_unit").value;const desc=$("#cf_serv").value.trim();
       const sz=sa>0&&ufam(su)?{a:sa,u:su}:null;const serving=sz?`${r2(sa)} ${su}${desc?" "+desc:""}`:(sa>0?`${r2(sa)} ${desc||"serving"}`:(desc||"1 serving"));
       const isCustom=base&&String(base.id||"").startsWith("c");
       const food={id:isCustom?base.id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving,cat:base&&base.cat&&base.cat!=="online"?base.cat:"custom",barcode:V.fbarcode||(base&&base.barcode)||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:val("cf_sa"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
-      if(sz)food.sz=sz;
+      if(sz)food.sz=sz;if(spcV>0)food.spc=spcV;if(ppV>0)food.pkgPrice=Math.round(ppV*100)/100;
+      if(spcV>0&&ppV>0){const m=money();m.foodCost=m.foodCost||{};m.foodCost[foodKey(food)]=Math.round(ppV/spcV*100)/100;saveMoney();}
+      if(!base&&ppV>0&&$("#cf_buy")&&$("#cf_buy").checked){const m=money();const st=$("#cf_store").value;m.exp.push({id:uidGen(),d:V.fday||dayKey(),amt:Math.round(ppV*100)/100,store:st,cat:"groc",note:name,at:Date.now()});saveMoney();toast(`Added ${$$(ppV)} at ${st} to this week's purchases`);}
+      V.fpre=null;
       if(base){const ok=foodKey(base);food.replaces=isCustom?base.replaces:ok;
         S.customFoods=(S.customFoods||[]).filter(x=>x.id!==food.id&&!(food.replaces&&x.replaces===food.replaces)&&foodKey(x)!==ok);
         S.recentFoods=(S.recentFoods||[]).map(x=>foodKey(x)===ok?{name:food.name,brand:food.brand,serving:food.serving,sz:food.sz,n:food.n,cat:food.cat,barcode:food.barcode}:x);
@@ -1756,6 +1840,7 @@ document.addEventListener("click",ev=>{
 document.addEventListener("input",ev=>{
   const t=ev.target;
   if(t.id==="fq"){V.fq=t.value;V.fonline=null;const pos=t.selectionStart;render();const q=$("#fq");q.focus();try{q.setSelectionRange(pos,pos);}catch(e){}}
+  if((t.id==="cf_spc"||t.id==="cf_pp")&&$("#cf_cpsNote")){const a=parseFloat($("#cf_spc").value),b=parseFloat($("#cf_pp").value);if(a>0&&b>0)$("#cf_cpsNote").textContent=`= ${$$(b/a)} per serving`;}
   if((t.id==="fqty"||t.id==="fcost")&&V.fpending&&$("#fqty"))$("#fprev").innerHTML=amountPreview(V.fpending.food,curQty(),curCps());
 });
 document.addEventListener("keydown",ev=>{if(ev.key==="Enter"&&ev.target.id==="fq"&&window.REP_PWA&&(V.fq||"").trim().length>=2)onlineSearch(V.fq.trim());});
@@ -2238,7 +2323,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.11";
+const APP_VERSION="2026.11.11b";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
