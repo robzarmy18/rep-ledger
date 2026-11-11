@@ -819,6 +819,10 @@ function vLog(){
     const best=f.assist?Math.min(...prev.map(p=>p.minW)):Math.max(...prev.map(p=>p.top));
     h+=`<div class="kv"><div class="stat"><div class="v num">${f.time||f.bw&&!last.top?esc(last.maxReps+(f.time?TU(f).s:"")):esc(toDisp(last.top))}</div><div class="k">Last top ${f.time?"hold":f.bw&&!last.top?"reps":"set ("+unit()+")"} · ${fmtDate(last.date,{month:"short",day:"numeric"})}</div></div><div class="stat"><div class="v num">${f.time||f.bw&&!best?esc(Math.max(...prev.map(p=>p.maxReps))+(f.time?TU(f).s:"")):esc(toDisp(best))}</div><div class="k">${f.assist?"Least assist":"All-time best"}</div></div></div>`;
   }
+  if(ex.g==="cardio"){const c=en.cardio||{};const tm=en.exId==="treadmill"||en.exId==="walk";
+    const fld=(id,k2,l,ph)=>`<div class="field"><label class="lbl" for="${id}">${l}</label><input type="number" inputmode="decimal" step="any" id="${id}" data-cardio="${k2}" value="${c[k2]??""}" placeholder="${ph}"></div>`;
+    h+=`<div class="card"><h3>Cardio details (for calories burned)</h3><div class="kv">${tm?fld("cdMph","mph","Speed (mph)","e.g. 3.0")+(en.exId==="treadmill"?fld("cdInc","inc","Incline (%)","e.g. 10"):""):""}${fld("cdHr","hr","Avg heart rate","bpm")}</div>
+      <div class="sub">Log the minutes in the sets below. ${tm?"Speed and incline give the most reliable estimate.":"Heart rate (from your watch) makes the estimate personal."}</div></div>`;}
   const wl=f.assist?"Assist":(f.bw?"+Weight":"Weight");
   h+=`<div class="card"><div class="sets"><div class="sethead"><span>Set</span><span>${wl} (${unit()})</span><span>${f.time?TU(f).L:"Reps"}${t?" "+t.lo+"–"+t.hi:""}</span><span>Effort</span><span>Done</span><span></span></div>`;
   en.sets.forEach((s,i)=>{const g=ghost(en,i);
@@ -1170,8 +1174,11 @@ function fg(){return{...FG_DEF,...(S.settings.food||{})};}
 function dayKey(d){d=d||new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function shiftDay(k,n){const [y,m,d]=k.split("-").map(Number);return dayKey(new Date(y,m-1,d+n));}
 function day(k,create){if(!S.days)S.days={};if(!S.days[k]&&create)S.days[k]={items:[],updatedAt:0};return S.days[k]||{items:[]};}
-const netC=n=>Math.max(0,(n.c||0)-(n.fib||0)-(n.sa||0));
-function totals(k){const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,sa:0,net:0};(day(k).items||[]).forEach(it=>{const q=it.qty||1;["cal","c","fib","sug","p","f","na","sa"].forEach(x=>t[x]+=(it.n[x]||0)*q);t.net+=netC(it.n)*q;});return t;}
+/* Net carbs (keto): total carbs − fiber − allulose − erythritol-type sugar alcohols − HALF of other sugar alcohols.
+   Fiber, erythritol and allulose barely raise blood sugar, so they come off in full. Maltitol, sorbitol, xylitol, isomalt etc.
+   are partly absorbed, so only half comes off (n.sa2). n.sa = sugar alcohols counted as zero (erythritol, the usual one in keto products). */
+const netC=n=>Math.max(0,(n.c||0)-(n.fib||0)-(n.sa||0)-(n.al||0)-0.5*(n.sa2||0));
+function totals(k){const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,sa:0,sa2:0,al:0,net:0};(day(k).items||[]).forEach(it=>{const q=it.qty||1;["cal","c","fib","sug","p","f","na","sa","sa2","al"].forEach(x=>t[x]+=(it.n[x]||0)*q);t.net+=netC(it.n)*q;});return t;}
 const r1=x=>Math.round(x*10)/10;
 function saveDay(k){const d=day(k,true);d.updatedAt=Date.now();saveLocal();
   if(Cloud.days)debounced("day_"+k,1500,()=>queueWrite("day_"+k,Cloud.days.doc(k),r=>r.set(JSON.parse(JSON.stringify(S.days[k])))));}
@@ -1203,12 +1210,12 @@ function meter(label,val,goal,kind,unitTxt){
 
 /* ---------- views ---------- */
 function vFood(){
-  const k=V.fday||dayKey();const g=fg();const t=totals(k);const d=day(k);const today=k===dayKey();
-  const fatTarget=Math.max(0,Math.round((g.cal-g.p*4-g.net*4)/9));
+  const k=V.fday||dayKey();const g=fg();const t=totals(k);const d=day(k);const today=k===dayKey();const A=allowance(k);
+  const fatTarget=Math.max(0,Math.round((A.cal-g.p*4-g.net*4)/9));
   let h=dayNav(S.profile&&S.profile.diet==="none"?"Food log":"Keto tracker");
-  h+=`<div class="card">${meter("Net carbs",t.net,g.net,"limit"," g")}
-    ${meter("Sugar",t.sug,g.sug,"limit"," g")}${meter("Calories",t.cal,g.cal,"limit","")}${meter("Protein",t.p,g.p,"target"," g")}${meter("Fat",t.f,fatTarget,"target"," g")}${meter("Sodium",t.na,g.na,"target"," mg")}
-    <div class="sub">Net carbs = total carbs − fiber − sugar alcohols.</div>
+  h+=`<div class="card">${meter("Net carbs"+(A.addN?` (+${A.addN} workout)`:""),t.net,A.net,"limit"," g")}
+    ${meter("Sugar",t.sug,g.sug,"limit"," g")}${meter("Calories"+(A.addC?` (+${A.addC} workout)`:""),t.cal,A.cal,"limit","")}${meter("Protein",t.p,g.p,"target"," g")}${meter("Fat",t.f,fatTarget,"target"," g")}${meter("Sodium",t.na,g.na,"target"," mg")}
+    ${burnNote(A)}<div class="sub">Net carbs = total carbs − fiber − allulose − erythritol − ½ of other sugar alcohols (maltitol, sorbitol, xylitol). <button class="pill" data-act="f_netInfo">How this works</button></div>
     <button class="pill" data-act="f_goals" style="align-self:flex-start">Edit daily goals</button></div>`;
   // water
   const w=d.water||0;
@@ -1359,7 +1366,7 @@ function insightsCard(){
   const up=lw&&pw&&lw.w-pw.w>=0.8;
   {const kd=ketoData();const lk=kd[kd.length-1];if(lk&&lk.status==="out"&&lk.k>=shiftDay(k,-1)&&lk.items.length){const top=lk.items.map(it=>({n:it.name,c:netC(it.n)*(it.qty||1)})).sort((x,y)=>y.c-x.c).filter(x=>x.c>=2).slice(0,3);
     out.push(["bad",`Out of ketosis on ${lk.k===k?"today's":"yesterday's"} test. ${top.length?`Biggest carb sources the day before: ${top.map(x=>x.n+" ("+r1(x.c)+" g)").join(", ")}.`:"Carbs were low, so check for hidden sugars, a big protein day, poor sleep or stress."}`]);}}
-  if(t.net>g.net)out.push(["bad",`Over your carb limit today (${r1(t.net)} g). Expect 1–3 lb of water weight back over the next day or two as your body refills its carb stores. It's water, not fat. Get back under tomorrow.`]);
+  if(t.net>allowance(k).net)out.push(["bad",`Over your carb limit today (${r1(t.net)} g). Expect 1–3 lb of water weight back over the next day or two as your body refills its carb stores. It's water, not fat. Get back under tomorrow.`]);
   if(y.net>g.net&&up)out.push(["warn",`Yesterday was ${r1(y.net)} g net carbs. That alone explains a jump on the scale this morning.`]);
   if(y.na>5500)out.push(["warn",`Yesterday's sodium was high (${Math.round(y.na)} mg). Salty days hold extra water for 1–2 days.`]);
   const recentStart=S.workouts.length&&S.workouts.filter(w=>new Date(w.date)>=new Date(Date.now()-14*864e5)).length>=2&&S.workouts.filter(w=>new Date(w.date)<new Date(Date.now()-21*864e5)).length===0;
@@ -1491,7 +1498,7 @@ function amountSheet(food,editIdx,keepUnit){food=withSaved(food);
 function amountPreview(food,q,cps){const n=food.n;q=+q||0;const u=V.fpending&&V.fpending.unit;
   return `${u&&u!=="srv"?`<div class="sub num">= <b>${r2(q)} serving${r2(q)===1?"":"s"}</b> of ${esc(food.serving)}</div>`:""}${cps!=null?`<div class="sub num">Cost for ${r1(q)} serving${q===1?"":"s"}: <b>${$$(cps*q)}</b></div>`:""}<div class="kv"><div class="stat"><div class="v num">${r1(netC(n)*q)} g</div><div class="k">Net carbs</div></div><div class="stat"><div class="v num">${Math.round(n.cal*q)}</div><div class="k">Calories</div></div>
   <div class="stat"><div class="v num">${r1(n.p*q)} g</div><div class="k">Protein</div></div><div class="stat"><div class="v num">${r1(n.sug*q)} g</div><div class="k">Sugar</div></div></div>
-  <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · sugar alcohols ${r1(n.sa*q)} g`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
+  <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · erythritol-type sugar alcohols ${r1(n.sa*q)} g (all subtracted)`:""}${n.sa2?` · other sugar alcohols ${r1(n.sa2*q)} g (half subtracted)`:""}${n.al?` · allulose ${r1(n.al*q)} g (all subtracted)`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
 function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fedit=base?{base,editIdx}:null;V.fpre=pre||null;
   const src=base||pre||null;
   const n=src?src.n:{};const sz=src?szOf(src):null;const cnt=src&&!sz?(String(src.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]:null;
@@ -1506,7 +1513,7 @@ function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fedit=
    <div class="q"><label>The whole package</label><div class="btns">${f("cf_spc","Servings per package","e.g. 7",spc)}${f("cf_pp","Price paid ($)","e.g. 4.98",pp)}</div>
    <div class="sub" id="cf_cpsNote">${spc>0&&pp>0?`= ${$$(pp/spc)} per serving`:"Add both and the app works out the cost per serving, and you can log a fraction of the package (like ¼ of the chicken)."}</div>
    ${base?"":`<label class="chk"><input type="checkbox" id="cf_buy" ${pre?"checked":""}> Also add the price to this week's purchases</label><div class="field"><label class="lbl" for="cf_store">Store</label><select id="cf_store">${allStores().map(st=>`<option ${st===(src&&src.brand)||(!(src&&src.brand)&&st==="Walmart")?"selected":""}>${esc(st)}</option>`).join("")}</select></div>`}</div>
-   <div class="kv">${f("cf_cal","Calories","0",n.cal)}${f("cf_c","Total carbs (g)","0",n.c)}${f("cf_fib","Fiber (g)","0",n.fib)}${f("cf_sug","Total sugars (g)","0",n.sug)}${f("cf_sa","Sugar alcohols (g)","0",n.sa)}${f("cf_p","Protein (g)","0",n.p)}${f("cf_f","Fat (g)","0",n.f)}${f("cf_na","Sodium (mg)","0",n.na)}</div>
+   <div class="kv">${f("cf_cal","Calories","0",n.cal)}${f("cf_c","Total carbs (g)","0",n.c)}${f("cf_fib","Fiber (g)","0",n.fib)}${f("cf_sug","Total sugars (g)","0",n.sug)}${f("cf_sa","Sugar alcohols (g)","0",(n.sa||0)+(n.sa2||0)||null)}<div class="field"><label class="lbl" for="cf_satype">Which sugar alcohol?</label><select id="cf_satype"><option value="full" ${n.sa2?"":(n.sa?"selected":"")}>Erythritol (subtract all)</option><option value="half" ${n.sa2||!n.sa?"selected":""}>Maltitol, sorbitol, xylitol, isomalt or not sure (subtract half)</option></select></div>${f("cf_al","Allulose (g)","0",n.al)}${f("cf_p","Protein (g)","0",n.p)}${f("cf_f","Fat (g)","0",n.f)}${f("cf_na","Sodium (mg)","0",n.na)}</div>
    ${base&&editIdx!=null?`<label class="chk"><input type="checkbox" id="cf_thisLog" checked> Update this entry in your log</label>`:""}
    ${base?`<label class="chk"><input type="checkbox" id="cf_pastLogs"> Also fix every past day I logged this food</label>`:""}
    <div class="btns"><button class="btn primary" data-act="f_customSave">Save food</button>${base?`<button class="btn" data-act="f_customBack">Back</button>`:`<button class="btn" data-act="closeSheetBtn">Cancel</button>`}</div>`);
@@ -1516,6 +1523,8 @@ function recomputeItem(it,food){it.name=food.name;it.brand=food.brand;it.serving
 function goalsSheet(){const g=fg();const f=(id,l,v)=>`<div class="field"><label class="lbl" for="${id}">${l}</label><input type="number" inputmode="decimal" id="${id}" value="${v}"></div>`;
   sheet(`<h2>Daily goals</h2><div class="sub">Common keto targets: 20 g net carbs or less. Protein around your goal weight in grams. Calories about 500 under maintenance for ~1 lb/week.</div>
   <div class="kv">${f("g_net","Net carbs max (g)",g.net)}${f("g_sug","Sugar max (g)",g.sug)}${f("g_cal","Calories",g.cal)}${f("g_p","Protein (g)",g.p)}${f("g_na","Sodium target (mg)",g.na)}${f("g_water","Water (oz)",g.water)}${f("g_h","Height (inches)",g.height)}</div>
+  <div class="q"><label>Add workout calories to today's calories</label><div class="seg">${[[100,"All"],[50,"Half"],[0,"None"]].map(([v,l])=>`<button data-act="f_eatBack" data-v="${v}" aria-pressed="${(g.eatBack??100)===v}">${l}</button>`).join("")}</div><div class="sub">Burn estimates (watches included) often run high. "Half" is the safer choice if your weight loss stalls.</div></div>
+  <label class="chk"><input type="checkbox" id="g_carbBack" ${g.carbBack?"checked":""}> Also add carbs burned in workouts to my net-carb limit</label><div class="sub">Usually left off for keto: the carb limit is about keeping insulin low so you stay in ketosis, and a keto-adapted body burns mostly fat, so carbs "burned" are small and hard to estimate.</div>
   <div class="btns"><button class="btn primary" data-act="f_goalsSave">Save goals</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
 
 
@@ -1556,14 +1565,15 @@ function parseLabel(raw){
   set("na",num(/sodium\s*(\d+(?:\.\d+)?)\s*mg/));
   set("c",num(/(?:total\s*)?carb[a-z]*\.?\s*(\d+(?:\.\d+)?)\s*g/)??g9("carb[a-z]*\\.?"));
   set("fib",num(/(?:dietary\s*)?fib(?:er|re)\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/));
-  set("sa",num(/sugar\s*alcohols?\s*(\d+(?:\.\d+)?)\s*g/));
+  set("sa2",num(/sugar\s*alcohols?\s*(\d+(?:\.\d+)?)\s*g/));set("al",num(/allulose\s*(\d+(?:\.\d+)?)\s*g/));
+  if(/erythritol/.test(L)&&!/maltitol|sorbitol|xylitol|isomalt|lactitol/.test(L)&&n.sa2!=null){n.sa=n.sa2;delete n.sa2;}
   const L2=L.replace(/includes?\s*\d+(?:\.\d+)?\s*g\s*added\s*sugars?/g," ").replace(/sugar\s*alcohols?\s*\d+(?:\.\d+)?\s*g/g," ");
   {const m=L2.match(/(?:total\s*)?sugars?\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/);set("sug",m?parseFloat(m[1]):null);}
   set("p",num(/protein\s*(?:less\s*than\s*)?(\d+(?:\.\d+)?)\s*g/)??g9("protein"));
   let servTxt=(t.match(/serving\s*size\s*[:\-]?\s*([^\n]+)/i)||[])[1]||"";servTxt=servTxt.replace(/\s{2,}.*$/,"").replace(/[^\w\s()./,%-]+$/,"").trim();
   let spc=num(/(\d+(?:\.\d+)?)\s*servings?\s*per\s*(?:container|package|pack)/)??num(/servings?\s*per\s*(?:container|package|pack)\s*[:\-]?\s*(?:about|approx\.?)?\s*(\d+(?:\.\d+)?)/);
   const sz=parseServing(servTxt,"");
-  return{serving:servTxt||"1 serving",sz,spc,n:{cal:n.cal||0,c:n.c||0,fib:n.fib||0,sug:n.sug||0,sa:n.sa||0,p:n.p||0,f:n.f||0,na:n.na||0},found,got:Object.keys(n)};}
+  return{serving:servTxt||"1 serving",sz,spc,n:{cal:n.cal||0,c:n.c||0,fib:n.fib||0,sug:n.sug||0,sa:n.sa||0,sa2:n.sa2||0,al:n.al||0,p:n.p||0,f:n.f||0,na:n.na||0},found,got:Object.keys(n)};}
 function labelReadNote(pre){const miss=["cal","f","c","p","na"].filter(k=>!pre.got||!pre.got.includes(k)).map(k=>({cal:"calories",f:"fat",c:"carbs",p:"protein",na:"sodium"})[k]);
   return `${pre.img?`<img src="${pre.img}" alt="Your label photo" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#fff">`:""}
    <div class="ins ${miss.length?"warn":"info"}">${pre.found?`Read ${pre.found} value${pre.found===1?"":"s"} from your ${pre.src==="paste"?"text":"photo"}. Check each number against the label before saving.`:"Couldn't make out the numbers. Fill them in below, or try a closer, flatter photo in good light."}${miss.length&&pre.found?` Not found: <b>${miss.join(", ")}</b>.`:""}</div>
@@ -1729,6 +1739,37 @@ function healthResult(r){
 }
 /* ---------- activity (steps, miles, calories burned) ---------- */
 function stepsPerMile(){const h=fg().height||69;return Math.round(63360/(h*0.414));}
+/* ---------- calories burned in logged workouts ----------
+   Treadmill / walk with speed (and incline): ACSM metabolic equations (walking < 4.5 mph, running ≥ 4.5 mph).
+   Heart rate given: Keytel et al. (2005) heart-rate equation, which needs age, sex and weight from your profile.
+   Otherwise: Compendium of Physical Activities MET values. Lifting time: 3.5 METs.
+   Only calories ABOVE resting are counted (resting calories are already in your daily goal).
+   A calorie number typed in from the Apple Watch summary always wins. */
+const CARDIO_MET={treadmill:6.0,stairs:9.0,elliptical:5.0,bike:6.8,walk:4.3};
+const LIFT_MET=3.5;
+function keytel(hr,kg,age,sex){return sex==="f"?(-20.4022+0.4472*hr-0.1263*kg+0.074*age)/4.184:(-55.0969+0.6309*hr+0.1988*kg+0.2017*age)/4.184;}
+function carbFrac(met){return met<3?0.35:met<6?0.5:met<9?0.65:0.75;}
+function workoutBurn(w){
+  const kg=curWeight()/LB_PER_KG;const rest=0.0175*kg;/* kcal/min at 1 MET */const P=S.profile||{};const age=+P.age,sex=P.sex;
+  const dur=w.duration||(w.end?Math.max(1,Math.round((new Date(w.end)-new Date(w.date))/60000)):0);
+  const parts=[];let cardioMin=0;
+  (w.entries||[]).filter(e=>e.group==="cardio"||CARDIO_MET[e.exId]).forEach(e=>{const mins=(e.sets||[]).reduce((a,s)=>a+(+s.r||0),0);if(!mins)return;cardioMin+=mins;const c=e.cardio||{};let kpm,how;
+    if((e.exId==="treadmill"||e.exId==="walk")&&c.mph>0){const sp=c.mph*26.8224,gr=(+c.inc||0)/100;const vo2=c.mph>=4.5?0.2*sp+0.9*sp*gr+3.5:0.1*sp+1.8*sp*gr+3.5;kpm=(vo2-3.5)/3.5*rest;how=`${c.mph} mph${c.inc?` at ${c.inc}% incline`:""}`;}
+    else if(c.hr>0&&age&&(sex==="m"||sex==="f")){kpm=Math.max(0,keytel(c.hr,kg,age,sex)-rest);how=`avg heart rate ${c.hr}`;}
+    else{kpm=((CARDIO_MET[e.exId]||5)-1)*rest;how="typical effort (add speed or heart rate for a better number)";}
+    parts.push({name:e.name,mins,kcal:kpm*mins,met:kpm/rest+1,how});});
+  const liftMin=Math.max(0,dur-cardioMin);
+  if(liftMin&&(w.entries||[]).some(e=>!(e.group==="cardio"||CARDIO_MET[e.exId]))){
+    if(w.hr>0&&age&&(sex==="m"||sex==="f")&&!parts.length){const k=Math.max(0,keytel(w.hr,kg,age,sex)-rest);parts.push({name:"Lifting",mins:liftMin,kcal:k*liftMin,met:k/rest+1,how:`avg heart rate ${w.hr}`});}
+    else parts.push({name:"Lifting",mins:liftMin,kcal:(LIFT_MET-1)*rest*liftMin,met:LIFT_MET,how:"weight training, about 3.5 METs"});}
+  let kcal=parts.reduce((a,x)=>a+x.kcal,0);const carbs=parts.reduce((a,x)=>a+x.kcal*carbFrac(x.met)/4,0);
+  if(w.cal>0)return{kcal:w.cal,carbs:carbs*(kcal?w.cal/kcal:0)||w.cal*0.5/4,parts,src:"watch"};
+  return{kcal,carbs,parts,src:"est"};}
+function dayBurn(k){const ws=S.workouts.filter(w=>dayKey(new Date(w.date))===k);let kcal=0,carbs=0;const list=ws.map(w=>{const b=workoutBurn(w);kcal+=b.kcal;carbs+=b.carbs;return{w,b};});return{kcal:Math.round(kcal),carbs:Math.round(carbs),list};}
+/* today's allowance = goal + calories burned in workouts (× your eat-back %), and optionally + carbs burned */
+function allowance(k){const g=fg();const b=dayBurn(k);const eb=(g.eatBack??100)/100;const addC=Math.round(b.kcal*eb);const addN=g.carbBack?Math.round(b.carbs):0;
+  return{cal:g.cal+addC,net:g.net+addN,addC,addN,burn:b};}
+function burnNote(a){if(!a.burn.kcal)return"";return `<div class="sub num">Workout burned about <b>${a.burn.kcal} cal</b>${a.addC?` · <b>+${a.addC} cal</b> added to today's calories`:""}${a.addN?` · <b>+${a.addN} g</b> added to net carbs`:a.burn.carbs?` · ~${a.burn.carbs} g carbs burned (not added to your carb limit)`:""} <button class="pill" data-act="f_burnInfo">Details</button></div>`;}
 function curWeight(){const bw=(S.bw||[]).slice().sort((a,b)=>a.d.localeCompare(b.d));return bw.length?bw[bw.length-1].w:200;}
 function actOf(k){const a=day(k).act||{};if(a.steps==null&&a.mi==null&&a.kcal==null)return null;
   const mi=a.mi!=null?a.mi:(a.steps!=null?a.steps/stepsPerMile():0);
@@ -1800,7 +1841,8 @@ document.addEventListener("click",ev=>{
       const e=V.fedit;const base=e&&e.base;const sa=parseFloat($("#cf_sa_amt").value);const su=$("#cf_unit").value;const desc=$("#cf_serv").value.trim();
       const sz=sa>0&&ufam(su)?{a:sa,u:su}:null;const serving=sz?`${r2(sa)} ${su}${desc?" "+desc:""}`:(sa>0?`${r2(sa)} ${desc||"serving"}`:(desc||"1 serving"));
       const isCustom=base&&String(base.id||"").startsWith("c");
-      const food={id:isCustom?base.id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving,cat:base&&base.cat&&base.cat!=="online"?base.cat:"custom",barcode:V.fbarcode||(base&&base.barcode)||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:val("cf_sa"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
+      const food={id:isCustom?base.id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving,cat:base&&base.cat&&base.cat!=="online"?base.cat:"custom",barcode:V.fbarcode||(base&&base.barcode)||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:$("#cf_satype").value==="full"?val("cf_sa"):0,sa2:$("#cf_satype").value==="half"?val("cf_sa"):0,al:val("cf_al"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
+      if(!food.n.sa2)delete food.n.sa2;if(!food.n.al)delete food.n.al;
       if(sz)food.sz=sz;if(spcV>0)food.spc=spcV;if(ppV>0)food.pkgPrice=Math.round(ppV*100)/100;
       if(spcV>0&&ppV>0){const m=money();m.foodCost=m.foodCost||{};m.foodCost[foodKey(food)]=Math.round(ppV/spcV*100)/100;saveMoney();}
       if(!base&&ppV>0&&$("#cf_buy")&&$("#cf_buy").checked){const m=money();const st=$("#cf_store").value;m.exp.push({id:uidGen(),d:V.fday||dayKey(),amt:Math.round(ppV*100)/100,store:st,cat:"groc",note:name,at:Date.now()});saveMoney();toast(`Added ${$$(ppV)} at ${st} to this week's purchases`);}
@@ -1816,8 +1858,15 @@ document.addEventListener("click",ev=>{
       S.customFoods=[food,...(S.customFoods||[])];saveProfile();V.fedit=null;closeSheet();
       if(base&&e.editIdx!=null){render();amountSheet({...food},e.editIdx);}else amountSheet(food,null);break;}
     case"f_goals":goalsSheet();break;
-    case"f_goalsSave":{const val=id=>parseFloat($("#"+id).value);const g={net:val("g_net"),sug:val("g_sug"),cal:val("g_cal"),p:val("g_p"),na:val("g_na"),water:val("g_water"),height:val("g_h")};
-      Object.keys(g).forEach(x=>{if(isNaN(g[x])||g[x]<0)delete g[x];});S.settings.food={...(S.settings.food||{}),...g};saveProfile();closeSheet();render();break;}
+    case"f_goalsSave":{const val=id=>parseFloat($("#"+id).value);const g={net:val("g_net"),sug:val("g_sug"),cal:val("g_cal"),p:val("g_p"),na:val("g_na"),water:val("g_water"),height:val("g_h")};const cb=$("#g_carbBack");
+      Object.keys(g).forEach(x=>{if(isNaN(g[x])||g[x]<0)delete g[x];});S.settings.food={...(S.settings.food||{}),...g,carbBack:!!(cb&&cb.checked)};saveProfile();closeSheet();render();break;}
+    case"f_eatBack":S.settings.food={...(S.settings.food||{}),eatBack:+v};saveProfile();document.querySelectorAll("[data-act=f_eatBack]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===v));render();break;
+    case"f_netInfo":sheet(`<h2>How net carbs are counted</h2><div class="sub"><b>Net carbs = total carbs − fiber − allulose − erythritol − half of other sugar alcohols.</b></div>
+      <div class="sub">• <b>Fiber</b> isn't digested into sugar, so all of it comes off.<br>• <b>Erythritol</b> and <b>allulose</b> barely affect blood sugar, so all of it comes off.<br>• <b>Maltitol, sorbitol, xylitol, isomalt</b> are partly absorbed and do raise blood sugar, so only half comes off. If the label doesn't say which sugar alcohol it is, the app counts half to be safe.<br>• Sugar is already part of total carbs, so it isn't subtracted again.</div>
+      <div class="sub">When you create or edit a food, pick which sugar alcohol it uses (check the ingredients). Labels outside the US sometimes list carbs with fiber already removed; if so, enter fiber as 0.</div><button class="btn" data-act="closeSheetBtn">Got it</button>`);break;
+    case"f_burnInfo":{const b=dayBurn(k);sheet(`<h2>Calories burned</h2>${b.list.map(({w,b:x})=>`<div class="q"><label>${esc(w.title||"Workout")} · ${Math.round(x.kcal)} cal${x.src==="watch"?" (from your watch)":""}</label>${x.parts.map(p=>`<div class="sub num">${esc(p.name)}: ${p.mins} min · ${Math.round(p.kcal)} cal · ${esc(p.how)}</div>`).join("")}</div>`).join("")}
+      <div class="sub">Only calories above resting are counted, since resting calories are already in your daily goal. Treadmill and walking use the ACSM equations (speed + incline); heart rate uses the Keytel formula with your age, sex and weight; other cardio uses standard MET values. Carbs burned assume a normal diet; on keto your body burns mostly fat, so the real carb number is lower.</div>
+      <div class="sub">For the best numbers, add speed and incline (or heart rate) on each cardio exercise, or type the Apple Watch calories when you finish the workout.</div><button class="btn" data-act="closeSheetBtn">Close</button>`);break;}
     case"f_usecal":S.settings.food={...(S.settings.food||{}),cal:+v};saveProfile();toast("Calorie goal updated");render();break;
     case"f_health":healthSheet();break;
     case"f_actEdit":actEditSheet();break;
@@ -1859,7 +1908,8 @@ function vToday(){
   let h=dayNav(k===dayKey()?`${hr<12?"Good morning":hr<17?"Good afternoon":"Good evening"}${nm?", "+nm:""} · ${new Date().toLocaleDateString([], {month:"long",day:"numeric"})}`:"");
   h+=`<div class="tiles">`+
     tile("t_goTrain",doneW.length?"Done":S.draft?"Going":(nx?esc(nx.name.split(" · ")[0]):"–"),"Workout",doneW.length?esc(doneW[0].title||""):S.draft?"In progress":"Up next",doneW.length?"good":"")+
-    tile("t_goFood",r1(Math.max(0,g.net-t.net))+" g","Net carbs left",`${r1(t.net)} of ${g.net} used`,t.net>g.net?"bad":t.net>=g.net*0.75?"warn":"good")+
+    (()=>{const A=allowance(k);return tile("t_goFood",r1(Math.max(0,A.net-t.net))+" g","Net carbs left",`${r1(t.net)} of ${A.net} used`,t.net>A.net?"bad":t.net>=A.net*0.75?"warn":"good")+
+      tile("t_goFood",Math.round(A.cal-t.cal).toLocaleString(),"Calories left",`${Math.round(t.cal).toLocaleString()} of ${A.cal.toLocaleString()}${A.addC?` (incl. +${A.addC} workout)`:""}`,t.cal>A.cal?"bad":"");})()+
     tile("t_goFood",a?a.steps.toLocaleString():"–","Steps",a?`${r1(a.mi)} mi · ${a.kcal} cal`:"Sync on Food tab",a&&a.steps>=(g.steps||8000)?"good":"")+
     (()=>{const kt=kNorm((day(k).keto||{}).status);const kd=ketoData();let st=0;for(let i=kd.length-1;i>=0&&kd[i].in;i--)st++;
       return tile("t_goFood",kt==="high"?"High":kt==="light"?"Slight":kt==="out"?"Out":"–","Ketosis",kt?(st?`${st} test${st===1?"":"s"} in a row`:"see what knocked you out"):"Not tested today",kt==="high"?"good":kt==="light"?"klight":kt==="out"?"bad":"");})()+
@@ -2159,7 +2209,8 @@ document.addEventListener("click",ev=>{
   if(a==="ob_done")obApply();
   if(a==="ob_skip"){S.profile={skipped:true,setupAt:Date.now()};if(!S.settings.home||S.settings.home==="train")S.settings.home="food";saveProfile();V.ob=null;V.tab="food";go("food");}
 });
-document.addEventListener("input",ev=>{const t=ev.target;if(t.dataset.ob&&V.ob){V.ob.a[t.dataset.ob]=t.type==="number"?t.value:t.value;
+document.addEventListener("input",ev=>{const t=ev.target;if(t.dataset.cardio&&S.draft){const en=S.draft.entries[V.idx];if(en){const x=parseFloat(t.value);en.cardio={...(en.cardio||{})};if(isNaN(x))delete en.cardio[t.dataset.cardio];else en.cardio[t.dataset.cardio]=x;saveDraft();}return;}
+  if(t.dataset.ob&&V.ob){V.ob.a[t.dataset.ob]=t.type==="number"?t.value:t.value;
   const nb=document.querySelector("[data-act=ob_next]");if(nb){const a=V.ob.a,st=OB_STEPS[V.ob.step];
     const ok=st==="body"?(a.sex&&+a.age&&+a.ft&&+a.weight):st==="goal"?(a.goal&&(a.goal==="maintain"||+a.goalW)):true;nb.disabled=!ok;}}});
 
@@ -2195,13 +2246,14 @@ function dayGlanceCard(k){
   let h=`<div class="card glance"><h3>Day at a glance</h3>
    <div class="top"><div class="grow"><div class="big num">${$$(c.tot)}</div><div class="sub">Food &amp; drink cost${c.missing?` · <b style="color:var(--accent)">${c.missing} item${c.missing===1?"":"s"} without a price</b>`:c.n?" · every item priced":""}</div></div>
     ${kt?`<span class="pill" style="color:#111;background:${kCol(kt)};border-color:${kCol(kt)}">${esc(kLabel(kt))}</span>`:`<button class="pill" data-act="m_goFood">Keto not tested</button>`}</div>
-   <div class="kv3">${st(Math.round(t.cal).toLocaleString(),`Calories (goal ${g.cal.toLocaleString()})`)}${st(r1(t.net)+" g",`Net carbs (max ${g.net})`)}${st(r1(t.c)+" g","Total carbs")}
+   <div class="kv3">${(()=>{const A=allowance(k);return st(Math.round(t.cal).toLocaleString(),`Calories (allowance ${A.cal.toLocaleString()}${A.addC?`, incl. +${A.addC} workout`:""})`)+st(r1(t.net)+" g",`Net carbs (max ${A.net})`);})()}${st(r1(t.c)+" g","Total carbs")}
     ${st(r1(t.sug)+" g",`Sugar (max ${g.sug})`)}${st(Math.round(t.p)+" g",`Protein (goal ${g.p})`)}${st(Math.round(t.f)+" g","Fat")}
     ${st(r1(t.fib)+" g","Fiber")}${st(Math.round(t.na).toLocaleString(),"Sodium (mg)")}${st((d.water||0)+" oz",`Water (goal ${g.water})`)}</div>`;
   h+=`<div class="q"><label>Workout</label>`;
   if(ws.length)h+=ws.map(w=>{const sets=w.entries.reduce((x,e)=>x+setsOf(e).length,0);const mins=w.end?Math.max(1,Math.round((new Date(w.end)-new Date(w.date))/60000)):w.duration;const prs=w.entries.filter(e=>e.pr).length;
     return `<button class="row" data-act="detail" data-v="${w.id}"><div class="grow"><span class="t">${esc(w.title||"Workout")}${prs?` <span class="pill pr">${prs} PR</span>`:""}</span><span class="s num">${w.entries.length} exercises · ${sets} sets${mins?` · ${mins} min`:""} · ${Math.round(toDispN(workoutVolume(w))).toLocaleString()} ${unit()} lifted</span><span class="s">${esc(w.entries.map(e=>e.name).join(", "))}</span></div><span class="chev">›</span></button>`;}).join("");
   else h+=`<div class="sub">${S.draft&&k===dayKey()?"Workout in progress.":"No workout logged this day."}</div>`;
+  {const b=dayBurn(k);if(b.kcal)h+=`<div class="sub num">Workout burn: about <b>${b.kcal} cal</b> · ~${b.carbs} g carbs</div>`;}
   if(a)h+=`<div class="sub num">${a.steps.toLocaleString()} steps · ${r1(a.mi)} mi · ${a.kcal.toLocaleString()} active cal${a.kcalEst?" (est.)":""}</div>`;
   return h+`</div></div>`;
 }
@@ -2323,7 +2375,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.11b";
+const APP_VERSION="2026.11.11c";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
@@ -2356,8 +2408,8 @@ function seedRecipes(){
       ingFrom("¼ teaspoon onion powder","Onion powder",0.25),ingFrom("¼ teaspoon crushed red pepper flakes","Crushed red pepper flakes",0.25),ingFrom("¼ teaspoon dried oregano","Dried oregano",0.25)]});
   S.recipesSeeded=true;return true;
 }
-const NK=["cal","c","fib","sug","p","f","na","sa"];
-function recipeTotals(r){const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,sa:0};(r.ings||[]).forEach(i=>{if(!i.food)return;NK.forEach(k=>t[k]+=(i.food.n[k]||0)*(i.qty||0));});return t;}
+const NK=["cal","c","fib","sug","p","f","na","sa","sa2","al"];
+function recipeTotals(r){const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,sa:0,sa2:0,al:0};(r.ings||[]).forEach(i=>{if(!i.food)return;NK.forEach(k=>t[k]+=(i.food.n[k]||0)*(i.qty||0));});return t;}
 function recipeFood(r){const t=recipeTotals(r);const sv=Math.max(1,+r.servings||1);const n={};NK.forEach(k=>n[k]=Math.round(t[k]/sv*10)/10);n.cal=Math.round(t.cal/sv);n.na=Math.round(t.na/sv);
   return{id:"r_"+r.id,name:r.name,brand:"My recipe",serving:r.servingLabel||`1 of ${sv} servings`,n,cat:"recipe",recipeId:r.id};}
 function recipeById(id){return(S.recipes||[]).find(r=>r.id===id);}
@@ -2508,7 +2560,7 @@ function finishSheet(complete){
 function doSaveWorkout(){
   const d=S.draft;const id=d.id;
   const entries=d.entries.filter(e=>setsOf(e).length).map(e=>{const ex=exById(e.exId)||{n:"Exercise",g:""};
-    return{target:e.target||null,exId:e.exId,name:ex.n,group:ex.g,opts:e.opts,vk:e.vk,variant:variantLabel(ex,e.opts),sets:setsOf(e).map(s=>{const o={w:s.w==null?null:Math.round(s.w*100)/100,r:s.r};if(s.d)o.d=s.d;return o;})};});
+    return{target:e.target||null,exId:e.exId,name:ex.n,group:ex.g,opts:e.opts,vk:e.vk,variant:variantLabel(ex,e.opts),...(e.cardio&&Object.keys(e.cardio).length?{cardio:e.cardio}:{}),sets:setsOf(e).map(s=>{const o={w:s.w==null?null:Math.round(s.w*100)/100,r:s.r};if(s.d)o.d=s.d;return o;})};});
   entries.forEach(e=>{e.pr=prCheck(e,id)||null;});
   const n=v=>{const x=parseInt($(v).value,10);return isNaN(x)?null:x;};
   const w={id,date:d.start,planned:d.entries.reduce((a,e)=>a+e.sets.length,0),planDate:d.planDate||null,end:new Date().toISOString(),title:d.routineName||draftTitle(),routineId:d.routineId||null,duration:n("#fDur"),hr:n("#fHr"),cal:n("#fCal"),notes:$("#fNotes").value.trim(),entries};
