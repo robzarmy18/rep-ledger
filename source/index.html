@@ -1212,7 +1212,7 @@ function vFood(){
   const w=d.water||0;
   h+=`<div class="card"><div class="top"><div class="grow"><h3>Water</h3><div class="sub num">${w} / ${g.water} oz</div></div><button class="btn" data-act="f_water" data-v="-8">−8</button><button class="btn primary" data-act="f_water" data-v="8">+8 oz</button><button class="btn primary" data-act="f_water" data-v="16">+16</button></div><div class="bar"><i style="width:${Math.min(100,w/g.water*100)}%;background:#4aa8ff"></i></div></div>`;
   h+=`<button class="btn block" data-act="f_recipes">Recipe vault${(S.recipes||[]).length?` (${S.recipes.length})`:""}</button>`;
-  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scanQuick" style="flex:1">Scan a barcode</button>`:""}<button class="btn primary" data-act="f_labelQuick" style="flex:1">Photo of a nutrition label</button></div>`;
+  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scanQuick" style="flex:1">Scan a barcode</button>`:""}<button class="btn primary" data-act="f_labelQuick" style="flex:1">Photo of a nutrition label</button><button class="btn primary" data-act="f_importQuick" style="flex:1">Paste from Claude</button></div>`;
   // meals
   MEALS.forEach(([m,l])=>{const items=(d.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.meal===m);
     const mt=items.reduce((a,x)=>a+netC(x.it.n)*(x.it.qty||1),0);const mc=items.reduce((a,x)=>a+(x.it.n.cal||0)*(x.it.qty||1),0);
@@ -1398,7 +1398,7 @@ function vFoodAdd(){
   let h=header("Add to "+meal[1].toLowerCase(),"","f_back");
   h+=`<input type="search" id="fq" placeholder="Search foods, brands, spices…" value="${esc(V.fq||"")}" aria-label="Search foods" autocomplete="off">`;
   h+=`<div class="chips">${FOOD_CATS.map(([c,l])=>`<button class="chip" data-act="f_cat" data-v="${c}" aria-pressed="${cat===c}" style="padding:6px 11px;font-size:13px">${l}</button>`).join("")}</div>`;
-  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn primary" data-act="f_label">Read a nutrition label (photo)</button><button class="btn" data-act="f_custom">Type in a label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
+  h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn primary" data-act="f_label">Read a nutrition label (photo)</button><button class="btn primary" data-act="f_import">Paste from Claude</button><button class="btn" data-act="f_custom">Type in a label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
   const match=f=>(!q||(f.name+" "+f.brand).toLowerCase().includes(q))&&(!cat||f.cat===cat);
   const row=(f,src,i)=>`<button class="row" data-act="f_pick" data-src="${src}" data-v="${esc(i)}"><div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${Math.round(f.n.cal)} cal · ${r1(f.n.p)} g protein · ${r1(f.n.sug)} g sugar</span></div><span class="pill num ${netC(f.n)>5?"pr":"ok"}">${r1(netC(f.n))} g net</span></button>`;
   const hf=histFoods();
@@ -1490,7 +1490,7 @@ function amountPreview(food,q,cps){const n=food.n;q=+q||0;const u=V.fpending&&V.
   return `${u&&u!=="srv"?`<div class="sub num">= <b>${r2(q)} serving${r2(q)===1?"":"s"}</b> of ${esc(food.serving)}</div>`:""}${cps!=null?`<div class="sub num">Cost for ${r1(q)} serving${q===1?"":"s"}: <b>${$$(cps*q)}</b></div>`:""}<div class="kv"><div class="stat"><div class="v num">${r1(netC(n)*q)} g</div><div class="k">Net carbs</div></div><div class="stat"><div class="v num">${Math.round(n.cal*q)}</div><div class="k">Calories</div></div>
   <div class="stat"><div class="v num">${r1(n.p*q)} g</div><div class="k">Protein</div></div><div class="stat"><div class="v num">${r1(n.sug*q)} g</div><div class="k">Sugar</div></div></div>
   <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · erythritol-type sugar alcohols ${r1(n.sa*q)} g (all subtracted)`:""}${n.sa2?` · other sugar alcohols ${r1(n.sa2*q)} g (half subtracted)`:""}${n.al?` · allulose ${r1(n.al*q)} g (all subtracted)`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
-function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fedit=base?{base,editIdx}:null;V.fpre=pre||null;
+function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fimp=null;V.fedit=base?{base,editIdx}:null;V.fpre=pre||null;
   const src=base||pre||null;
   const n=src?src.n:{};const sz=src?szOf(src):null;const cnt=src&&!sz?(String(src.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]:null;
   const desc=src&&!sz?src.serving||"":"";const spc=src?src.spc:null;const pp=src?src.pkgPrice:null;
@@ -1507,7 +1507,7 @@ function customSheet(barcode,base,editIdx,pre){V.fbarcode=barcode||null;V.fedit=
    <div class="kv">${f("cf_cal","Calories","0",n.cal)}${f("cf_c","Total carbs (g)","0",n.c)}${f("cf_fib","Fiber (g)","0",n.fib)}${f("cf_sug","Total sugars (g)","0",n.sug)}${f("cf_sa","Sugar alcohols (g)","0",(n.sa||0)+(n.sa2||0)||null)}<div class="field"><label class="lbl" for="cf_satype">Which sugar alcohol?</label><select id="cf_satype"><option value="full" ${n.sa2?"":(n.sa?"selected":"")}>Erythritol (subtract all)</option><option value="half" ${n.sa2||!n.sa?"selected":""}>Maltitol, sorbitol, xylitol, isomalt or not sure (subtract half)</option></select></div>${f("cf_al","Allulose (g)","0",n.al)}${f("cf_p","Protein (g)","0",n.p)}${f("cf_f","Fat (g)","0",n.f)}${f("cf_na","Sodium (mg)","0",n.na)}</div>
    ${base&&editIdx!=null?`<label class="chk"><input type="checkbox" id="cf_thisLog" checked> Update this entry in your log</label>`:""}
    ${base?`<label class="chk"><input type="checkbox" id="cf_pastLogs"> Also fix every past day I logged this food</label>`:""}
-   <div class="btns"><button class="btn primary" data-act="f_customSave">Save food</button>${base?`<button class="btn" data-act="f_customBack">Back</button>`:`<button class="btn" data-act="closeSheetBtn">Cancel</button>`}</div>`);
+   <div class="btns"><button class="btn primary" data-act="f_customSave">Save food</button>${base||(pre&&pre.src==="paste"&&V.imp)?`<button class="btn" data-act="f_customBack">Back</button>`:`<button class="btn" data-act="closeSheetBtn">Cancel</button>`}</div>`);
 }
 function recomputeItem(it,food){it.name=food.name;it.brand=food.brand;it.serving=food.serving;it.n=food.n;if(food.sz)it.sz=food.sz;else delete it.sz;
   if(it.unit&&it.amt!=null&&unitsFor(food).includes(it.unit))it.qty=Math.round(toServings(food,it.amt,it.unit)*10000)/10000;else{delete it.unit;delete it.amt;}}
@@ -1518,6 +1518,97 @@ function goalsSheet(){const g=fg();const f=(id,l,v)=>`<div class="field"><label 
   <label class="chk"><input type="checkbox" id="g_carbBack" ${g.carbBack?"checked":""}> Also add carbs burned in workouts to my net-carb limit</label><div class="sub">Usually left off for keto: the carb limit is about keeping insulin low so you stay in ketosis, and a keto-adapted body burns mostly fat, so carbs "burned" are small and hard to estimate.</div>
   <div class="btns"><button class="btn primary" data-act="f_goalsSave">Save goals</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
 
+
+/* ---------- import nutrition from Claude (or any pasted text): lists, tables, "Food: … | Calories: …" lines or JSON ---------- */
+const CLAUDE_REQ=`For each food below, give the nutrition for one typical serving. Reply with one line per food in exactly this format and nothing else:
+Food: <name> | Brand: <brand or blank> | Serving: <amount and unit, e.g. 6 oz cooked, 1 cup, 2 tbsp> | Calories: <n> | Total carbs: <g> | Fiber: <g> | Sugar: <g> | Sugar alcohols: <g> (name which, e.g. erythritol or maltitol) | Allulose: <g> | Protein: <g> | Fat: <g> | Sodium: <mg>
+
+Foods:
+`;
+const NUTKEYS=[
+ [/^(?:total\s*)?(?:calories|kcals?|energy|cals?)\b/,"cal"],[/^net\s*carb/,"net"],[/^(?:total\s*)?carb(?:ohydrate)?s?\b/,"c"],
+ [/^(?:dietary\s*)?fib(?:er|re)s?\b/,"fib"],[/^sugar\s*alcohols?\b/,"salc"],[/^allulose\b/,"al"],[/^erythritol\b/,"ery"],
+ [/^(?:includes?\s*)?added\s*sugars?\b/,null],[/^(?:total\s*)?sugars?\b/,"sug"],[/^protein\b/,"p"],
+ [/^(?:saturated|sat\.?|trans|mono|poly|unsaturated)/,null],[/^(?:total\s*)?fats?\b/,"f"],[/^(?:sodium|salt)\b/,"na"],
+ [/^servings?\s*per\s*(?:container|package|pack)/,"spc"],[/^(?:serving(?:\s*size)?|portion(?:\s*size)?|amount|per)\b/,"serv"],
+ [/^(?:price|cost)\b/,"price"],[/^brand\b/,"brand"],[/^(?:food|item|name)\b/,"name"],
+ [/^(?:cholesterol|potassium|calcium|iron|vitamin|magnesium)/,null]];
+function nkey(label){const l=label.toLowerCase().replace(/[_*`#]/g," ").replace(/\s+/g," ").trim();for(const [re,k] of NUTKEYS)if(re.test(l))return{k};return null;}
+function nval(v,key){let t=String(v).toLowerCase().replace(/,(?=\d{3}\b)/g,"").replace(/approx\.?|about|around|roughly|~|≈/g,"").trim();
+  let m=t.match(/(\d*\.?\d+)\s*(?:-|–|to)\s*(\d*\.?\d+)/);let x;if(m)x=(parseFloat(m[1])+parseFloat(m[2]))/2;
+  else{m=t.match(/(<|less than)?\s*(\d*\.?\d+)/);if(!m)return null;x=parseFloat(m[2]);if(m[1])x=x/2;}
+  if(key==="na"&&/\d\s*g\b/.test(t)&&!/mg/.test(t))x*=1000;return x;}
+function blankFood(){return{name:"",brand:"",serving:"",v:{},text:""};}
+function finishFood(b){const v=b.v;const cnt=["cal","c","net","p","f"].filter(k=>v[k]!=null).length;if(cnt<2)return null;
+  let name=(b.name||"").replace(/^[\s\d.)#*-]+(?=[A-Za-z])/,"").replace(/[*_`#]/g,"").replace(/[:\s]+$/,"").trim();let serving=b.serving||"";
+  const per=name.match(/\s*[,–—-]?\s*\bper\s+(.+)$/i);if(per&&!serving){serving=per[1];name=name.slice(0,per.index).trim();}
+  const par=name.match(/\(([^)]*\d[^)]*)\)\s*$/);if(par&&!serving){serving=par[1];name=name.replace(par[0],"").trim();}
+  const dash=name.match(/\s+[–—-]\s+(.*\d.*)$/);if(dash&&!serving&&parseServing(dash[1],"")){serving=dash[1];name=name.slice(0,dash.index).trim();}
+  serving=serving.replace(/^per\s+/i,"").replace(/[*_`]/g,"").trim();
+  const c=v.c!=null?v.c:(v.net!=null?v.net+(v.fib||0):0);const ery=/erythritol/i.test(b.text)&&!/maltitol|sorbitol|xylitol|isomalt/i.test(b.text);
+  const n={cal:Math.round(v.cal||0),c:r1(c),fib:r1(v.fib||0),sug:r1(v.sug||0),p:r1(v.p||0),f:r1(v.f||0),na:Math.round(v.na||0),sa:r1((v.ery||0)+(ery?v.salc||0:0)),sa2:r1(ery?0:v.salc||0),al:r1(v.al||0)};
+  ["sa","sa2","al"].forEach(k=>{if(!n[k])delete n[k];});
+  const f={name:name||"Food from Claude",brand:(b.brand||"").trim(),serving:serving||"1 serving",n,got:Object.keys(v)};const sz=parseServing(f.serving,"");if(sz)f.sz=sz;
+  if(v.spc>0)f.spc=v.spc;if(v.price>0)f.pkgPrice=r2(v.price);return f;}
+function applyKV(b,label,val){const k=nkey(label);if(!k)return false;if(k.k===null)return true;
+  if(k.k==="name"){b.name=String(val).trim();return true;}if(k.k==="brand"){b.brand=String(val).trim();return true;}if(k.k==="serv"){b.serving=String(val).trim();return true;}
+  const x=nval(val,k.k);if(x==null)return false;b.v[k.k]=x;return true;}
+function parseFoodsText(raw){
+  const txt=String(raw||"").replace(/\r/g,"");const out=[];
+  // JSON
+  try{const i=txt.search(/[\[{]/);if(i>=0){const j=JSON.parse(txt.slice(i,Math.max(txt.lastIndexOf("]"),txt.lastIndexOf("}"))+1));(Array.isArray(j)?j:j.foods||[j]).forEach(o=>{const b=blankFood();b.text=JSON.stringify(o);Object.entries(o).forEach(([k,v])=>{if(typeof v==="object"&&v)Object.entries(v).forEach(([k2,v2])=>applyKV(b,k2,v2));else applyKV(b,k.replace(/_/g," "),v);});const f=finishFood(b);if(f)out.push(f);});if(out.length)return out;}}catch(e){}
+  const lines=txt.split("\n");
+  // markdown tables
+  for(let i=0;i<lines.length;i++){if(!/\|/.test(lines[i]))continue;const cells=lines[i].split("|").map(c=>c.trim()).filter((c,j,a)=>!(c===""&&(j===0||j===a.length-1)));
+    if(cells.length<3||!cells.some(c=>{const k=nkey(c);return k&&["cal","c","p","f"].includes(k.k);}))continue;if(cells.some(c=>/:\s*\S/.test(c)))continue;
+    const heads=cells.map(c=>nkey(c));let j=i+1;if(j<lines.length&&/^[\s|:-]+$/.test(lines[j]))j++;
+    for(;j<lines.length&&/\|/.test(lines[j]);j++){const row=lines[j].split("|").map(c=>c.trim()).filter((c,x,a)=>!(c===""&&(x===0||x===a.length-1)));const b=blankFood();b.text=lines[j];
+      row.forEach((c,x)=>{const h=heads[x];if(h&&h.k!==null)applyKV(b,cells[x],c);else if(!h&&x===0)b.name=c;});
+      const f=finishFood(b);if(f)out.push(f);}
+    if(out.length)return out;}
+  // lists, "key: value" lines and "Food: … | …" lines
+  let b=blankFood();const push=()=>{const f=finishFood(b);if(f)out.push(f);b=blankFood();};
+  for(let line of lines){
+    line=line.replace(/\*\*|__|`/g,"").replace(/^\s*(?:[-*•▪◦]|\d+[.)])\s+/,"").replace(/^#+\s*/,"").trim();if(!line)continue;
+    const segs=line.split(/\s*\|\s*/).filter(Boolean);
+    if(segs.length>=3&&segs.filter(x=>/^[^:]{1,40}:/.test(x)).length>=3){push();b.text=line;segs.forEach(x=>{const m=x.match(/^([^:]{1,40}):\s*(.*)$/);if(m)applyKV(b,m[1],m[2]);});push();continue;}
+    b.text+=" "+line;let hit=false;
+    const kv=line.match(/^([A-Za-z][A-Za-z ()/.&-]{1,40}?)\s*(?:[:=]|\s[–—-]\s|\s(?=[~<≈]?\d))\s*(.+)$/);
+    if(kv){const k=nkey(kv[1]);if(k){if(k.k&&!["name","brand","serv"].includes(k.k)&&b.v[k.k]!=null){push();}hit=applyKV(b,kv[1],kv[2])||k.k===null;}}
+    if(!hit){// inline: "460 calories, 40 g protein, 33 g fat, 0 g carbs"
+      const found=[];let m;const re=/([~<≈]?\d[\d.,]*(?:\s*[-–]\s*\d[\d.]*)?)\s*(k?cal(?:ories)?|kcal|mg\s+sodium|g\s+(?:of\s+)?(?:net\s+carbs?|carbs?|carbohydrates?|fib(?:er|re)|sugars?|protein|fat))/gi;
+      while((m=re.exec(line))){const unit=m[2].toLowerCase();const lab=/cal/.test(unit)?"calories":/sodium/.test(unit)?"sodium":unit.replace(/^g\s+(?:of\s+)?/,"");found.push([lab,m[1]+(/sodium/.test(unit)?" mg":"")]);}
+      if(found.length>=2){found.forEach(([l,v])=>applyKV(b,l,v));hit=true;
+        if(!b.name){const nm=line.match(/^(?:an?\s+|one\s+|the\s+)?(.+?)\s+(?:has|have|contains?|is|are|provides?|comes? to|=|:)\s/i);if(nm)b.name=nm[1].replace(/^(?:an?|the)\s+/i,"");}}}
+    if(!hit&&line.length<=90&&/[a-z]/i.test(line)&&!/[.!?]$/.test(line)){if(Object.keys(b.v).length)push();b.name=line;b.text=line;}}
+  push();return out;}
+function findExisting(f){const nm=f.name.toLowerCase().trim(),br=(f.brand||"").toLowerCase().trim();
+  const full=x=>((x.brand?x.brand+" ":"")+x.name).toLowerCase().trim();
+  return allFoods().find(x=>!x.recipeId&&x.name.toLowerCase().trim()===nm&&(!br||(x.brand||"").toLowerCase().trim()===br))||allFoods().find(x=>!x.recipeId&&(full(x)===nm||full(x)===(br+" "+nm).trim()))||null;}
+function upsertFood(food,ex,fixPast){let changed=0;
+  if(ex){const isC=String(ex.id||"").startsWith("c");const ok=foodKey(ex);food.id=isC?ex.id:"c"+uidGen();food.replaces=isC?ex.replaces:ok;food.cat=ex.cat&&ex.cat!=="online"?ex.cat:"custom";
+    if(!food.brand&&ex.brand)food.brand=ex.brand;if(ex.barcode)food.barcode=ex.barcode;
+    S.customFoods=(S.customFoods||[]).filter(x=>x.id!==food.id&&!(food.replaces&&x.replaces===food.replaces)&&foodKey(x)!==ok);
+    S.recentFoods=(S.recentFoods||[]).map(x=>foodKey(x)===ok?{name:food.name,brand:food.brand,serving:food.serving,sz:food.sz,n:food.n,cat:food.cat,barcode:food.barcode}:x);
+    if(fixPast)Object.keys(S.days||{}).forEach(dk=>{let c=0;(S.days[dk].items||[]).forEach(it=>{if(foodKey(it)===ok){recomputeItem(it,food);c++;}});if(c){saveDay(dk);changed+=c;}});}
+  else{food.id="c"+uidGen();food.cat="custom";}
+  if(food.spc>0&&food.pkgPrice>0){const m=money();m.foodCost=m.foodCost||{};m.foodCost[foodKey(food)]=r2(food.pkgPrice/food.spc);}
+  S.customFoods=[food,...(S.customFoods||[])];return changed;}
+function importSheet(){
+  sheet(`<h2>Import from Claude</h2>
+   <div class="q"><label>1. Ask Claude</label><div class="sub">Copy this request, paste it into your Claude chat and list your foods under "Foods:". Any normal Claude answer works too; this format just reads perfectly.</div>
+    <button class="btn" data-act="f_impCopy">Copy request for Claude</button></div>
+   <div class="q"><label>2. Paste Claude's answer</label><textarea id="impTxt" placeholder="Paste the whole answer here. One food or many; lists, tables or plain text." style="min-height:200px">${esc(V.impTxt||"")}</textarea></div>
+   <div class="btns"><button class="btn" data-act="f_impPaste">Paste</button><button class="btn primary" data-act="f_impParse">Read it</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
+function importResults(){const I=V.imp;const nOn=I.items.filter(x=>x.on).length;
+  sheet(`<h2>Found ${I.items.length} food${I.items.length===1?"":"s"}</h2><div class="sub">Check the numbers, tap Edit to fix anything, then save. Saved foods show up in search and the next time you log them.</div>
+   <div class="list">${I.items.map((f,i)=>{const ex=f.ex;const st=ex?(String(ex.id||"").startsWith("c")?"Updates your saved food":"Replaces the built-in food"):"New food";
+     return `<div class="row" style="align-items:flex-start"><input type="checkbox" data-impchk="${i}" ${f.on?"checked":""} aria-label="Include ${esc(f.name)}" style="width:22px;height:22px;margin-top:3px;accent-color:var(--accent)">
+      <div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${f.n.cal} cal · ${r1(netC(f.n))} g net carbs · ${r1(f.n.sug)} g sugar · ${r1(f.n.p)} g protein · ${r1(f.n.f)} g fat · ${f.n.na} mg sodium</span>
+      <span class="s"><span class="pill ${ex?"pr":"ok"}">${st}</span>${f.got.length<5?` <span class="pill">only ${f.got.length} values found</span>`:""}</span></div><button class="btn" data-act="f_impEdit" data-v="${i}">Edit</button></div>`;}).join("")}</div>
+   ${I.items.some(x=>x.ex)?`<label class="chk"><input type="checkbox" id="impPast"> Also fix past days where I logged these foods</label>`:""}
+   <div class="btns"><button class="btn primary" data-act="f_impSave" ${nOn?"":"disabled"}>Save ${nOn} food${nOn===1?"":"s"}</button><button class="btn" data-act="f_import">Back</button></div>`);}
+document.addEventListener("change",ev=>{const t=ev.target;if(t.dataset&&t.dataset.impchk!=null&&V.imp){V.imp.items[+t.dataset.impchk].on=t.checked;const n=V.imp.items.filter(x=>x.on).length;const b=$("[data-act=f_impSave]");if(b){b.disabled=!n;b.textContent=`Save ${n} food${n===1?"":"s"}`;}}});
 
 /* ---------- nutrition label from a photo: read on the phone (Tesseract OCR), no upload, no camera permission ---------- */
 let OCRW=null,OCRP=null;
@@ -1820,13 +1911,26 @@ document.addEventListener("click",ev=>{
     case"f_addFromMoney":{const h=new Date().getHours();V.fmeal=v||(h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack");V.fq="";V.fcat=null;V.fonline=null;V.fret="money";go("foodAdd");break;}
     case"f_custom":customSheet();break;
     case"f_label":labelSheet();break;
+    case"f_import":importSheet();break;
+    case"f_importQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";V.fret=null;importSheet();break;}
+    case"f_impCopy":(async()=>{try{await navigator.clipboard.writeText(CLAUDE_REQ);toast("Copied. Paste it into Claude and list your foods.");}catch(e){sheet(`<h2>Copy this</h2><textarea id="reqTxt" style="min-height:220px">${esc(CLAUDE_REQ)}</textarea><div class="sub">Press and hold, Select All, Copy.</div><button class="btn" data-act="f_import">Back</button>`);}})();break;
+    case"f_impPaste":(async()=>{try{const t=await navigator.clipboard.readText();if(t){$("#impTxt").value=t;V.impTxt=t;}else toast("Clipboard is empty");}catch(e){toast("Press and hold in the box and tap Paste");$("#impTxt").focus();}})();break;
+    case"f_impParse":{const t=$("#impTxt").value;V.impTxt=t;const items=parseFoodsText(t);if(!items.length){toast("Couldn't find calories, carbs, protein or fat in that text");break;}
+      V.imp={items:items.map(f=>({...f,on:true,ex:findExisting(f)}))};importResults();break;}
+    case"f_impEdit":{const i=+v;const f=V.imp.items[i];customSheet(null,null,null,{...f,found:f.got.length,src:"paste"});V.fimp=i;break;}
+    case"f_impSave":{const fix=$("#impPast")&&$("#impPast").checked;let saved=[],changed=0;
+      V.imp.items.filter(x=>x.on).forEach(x=>{const food={name:x.name,brand:x.brand||"",serving:x.serving,n:x.n};if(x.sz)food.sz=x.sz;if(x.spc)food.spc=x.spc;if(x.pkgPrice)food.pkgPrice=x.pkgPrice;
+        changed+=upsertFood(food,x.ex,fix);saved.push(food);});
+      saveProfile();if(saved.some(f=>f.pkgPrice))saveMoney();V.imp=null;V.impTxt="";
+      toast(`Saved ${saved.length} food${saved.length===1?"":"s"}${changed?` · ${changed} log entr${changed===1?"y":"ies"} fixed`:""}`);
+      if(saved.length===1&&V.view!=="settings"){closeSheet();render();amountSheet({...saved[0]},null);}else{closeSheet();render();}break;}
     case"f_labelQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";V.fret=null;labelSheet();break;}
     case"f_labelPaste":pasteLabelSheet();break;
     case"f_labelParse":{const txt=$("#lblTxt").value;if(!txt.trim()){toast("Paste the label text first");break;}const r=parseLabel(txt);customSheet(null,null,null,{...r,raw:txt,src:"paste"});break;}
     case"f_scan":openScanner();break;
     case"f_scanQuick":{const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";openScanner();break;}
     case"f_scanType":lookupBarcode($("#scanCode").value);break;
-    case"f_customBack":{const e=V.fedit;V.fedit=null;amountSheet(e.base,e.editIdx);break;}
+    case"f_customBack":{if(V.fimp!=null&&V.imp){V.fimp=null;importResults();break;}const e=V.fedit;V.fedit=null;amountSheet(e.base,e.editIdx);break;}
     case"f_customSave":{const val=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?0:x;};const name=$("#cf_name").value.trim();if(!name){toast("Give the food a name");break;}
       const spcV=parseFloat($("#cf_spc").value),ppV=parseFloat($("#cf_pp").value);
       const e=V.fedit;const base=e&&e.base;const sa=parseFloat($("#cf_sa_amt").value);const su=$("#cf_unit").value;const desc=$("#cf_serv").value.trim();
@@ -1835,6 +1939,7 @@ document.addEventListener("click",ev=>{
       const food={id:isCustom?base.id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving,cat:base&&base.cat&&base.cat!=="online"?base.cat:"custom",barcode:V.fbarcode||(base&&base.barcode)||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:$("#cf_satype").value==="full"?val("cf_sa"):0,sa2:$("#cf_satype").value==="half"?val("cf_sa"):0,al:val("cf_al"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
       if(!food.n.sa2)delete food.n.sa2;if(!food.n.al)delete food.n.al;
       if(sz)food.sz=sz;if(spcV>0)food.spc=spcV;if(ppV>0)food.pkgPrice=Math.round(ppV*100)/100;
+      if(V.fimp!=null&&V.imp){const i=V.fimp;V.fimp=null;V.fpre=null;const old=V.imp.items[i];const nf={...old,name:food.name,brand:food.brand,serving:food.serving,n:food.n,sz:food.sz,spc:food.spc,pkgPrice:food.pkgPrice,got:Object.keys(food.n)};delete nf.ex;nf.ex=findExisting(nf);V.imp.items[i]=nf;importResults();break;}
       if(spcV>0&&ppV>0){const m=money();m.foodCost=m.foodCost||{};m.foodCost[foodKey(food)]=Math.round(ppV/spcV*100)/100;saveMoney();}
       if(!base&&ppV>0&&$("#cf_buy")&&$("#cf_buy").checked){const m=money();const st=$("#cf_store").value;m.exp.push({id:uidGen(),d:V.fday||dayKey(),amt:Math.round(ppV*100)/100,store:st,cat:"groc",note:name,at:Date.now()});saveMoney();toast(`Added ${$$(ppV)} at ${st} to this week's purchases`);}
       V.fpre=null;
@@ -2366,7 +2471,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.11c";
+const APP_VERSION="2026.11.12";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
