@@ -1562,14 +1562,20 @@ function parseServing(str,cat){if(!str)return null;
   return null;}
 function szOf(f){return f.sz&&f.sz.a>0&&ufam(f.sz.u)?f.sz:parseServing(f.serving,f.cat);}
 /* units this food can be entered in: same family as its serving, plus the other family for drinks (1 g ≈ 1 ml) */
-function unitsFor(f){const sz=szOf(f);if(!sz)return[];const fam=ufam(sz.u);return UNITS.filter(u=>ufam(u)===fam||(LIQ.has(f.cat)||sz.u==="fl oz"||sz.u==="ml")&&ufam(u));}
+const CNTU=["slice","piece","link","strip","spear","nugget","cracker","chip","cookie","wing","egg","patty","bar","can","bottle","tortilla","stick","shot","packet","scoop","frank","bun","pickle","leaf","olive"];
+const isCnt=u=>CNTU.includes(u);
+function plur(u,n){if(Math.abs((+n||0)-1)<1e-9)return u;return u==="patty"?"patties":u==="leaf"?"leaves":u+"s";}
+function parseCount(str){if(!str)return null;const m=String(str).toLowerCase().match(/(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.?\d+)\s*(slices?|pieces?|pcs?|links?|strips?|spears?|nuggets?|crackers?|chips?|cookies?|wings?|eggs?|patt(?:y|ies)|bars?|cans?|bottles?|tortillas?|sticks?|shots?|packets?|scoops?|franks?|buns?|pickles?|leaf|leaves|olives?|each)\b/);
+  if(!m)return null;let u=m[2];u=u==="leaves"?"leaf":u==="cookies"?"cookie":u==="patties"?"patty":u.replace(/s$/,"");if(u==="pc"||u==="each")u="piece";const n=parseNum(m[1]);return n>0&&isCnt(u)?{n,u}:null;}
+function cntOf(f){return f.cnt&&f.cnt.n>0?f.cnt:parseCount(f.serving);}
+function unitsFor(f){const c=cntOf(f);const sz=szOf(f);let out=[];if(sz){const fam=ufam(sz.u);out=UNITS.filter(u=>ufam(u)===fam||(LIQ.has(f.cat)||sz.u==="fl oz"||sz.u==="ml")&&ufam(u));}if(c)out.unshift(c.u);return out;}
 function toGramsOrMl(a,u){return UW[u]?a*UW[u]:a*UV[u];}
-function toServings(f,a,u){a=+a||0;if(!u||u==="srv")return a;if(u==="pkg")return a*(+f.spc||1);const sz=szOf(f);if(!sz)return a;return toGramsOrMl(a,u)/toGramsOrMl(sz.a,sz.u);}
-function fromServings(f,q,u){if(!u||u==="srv")return q;if(u==="pkg")return q/(+f.spc||1);const sz=szOf(f);if(!sz)return q;return q*toGramsOrMl(sz.a,sz.u)/toGramsOrMl(1,u);}
+function toServings(f,a,u){a=+a||0;if(!u||u==="srv")return a;if(u==="pkg")return a*(+f.spc||1);if(isCnt(u)){const c=cntOf(f);return c?a/c.n:a;}const sz=szOf(f);if(!sz)return a;return toGramsOrMl(a,u)/toGramsOrMl(sz.a,sz.u);}
+function fromServings(f,q,u){if(!u||u==="srv")return q;if(u==="pkg")return q/(+f.spc||1);if(isCnt(u)){const c=cntOf(f);return c?q*c.n:q;}const sz=szOf(f);if(!sz)return q;return q*toGramsOrMl(sz.a,sz.u)/toGramsOrMl(1,u);}
 const r2=x=>Math.round(x*100)/100;
-function amtTxt(it){const q=it.qty||1;if(it.unit==="pkg"&&it.amt!=null)return `${pkgFrac(it.amt)} of the package`;return it.unit&&it.unit!=="srv"&&it.amt!=null?`${r2(it.amt)} ${it.unit}`:`${r1(q)} × ${it.serving}`;}
+function amtTxt(it){const q=it.qty||1;if(it.unit==="pkg"&&it.amt!=null)return `${pkgFrac(it.amt)} of the package`;if(isCnt(it.unit)&&it.amt!=null)return `${r2(it.amt)} ${plur(it.unit,it.amt)}`;return it.unit&&it.unit!=="srv"&&it.amt!=null?`${r2(it.amt)} ${it.unit}`:`${r1(q)} × ${it.serving}`;}
 function pkgFrac(a){const m={0.25:"¼",0.33:"⅓",0.5:"½",0.67:"⅔",0.75:"¾",1:"all"};return m[r2(a)]||r2(a);}
-function withSaved(food){const cf=(S.customFoods||[]).find(x=>foodKey(x)===foodKey(food));return cf?{...food,spc:food.spc??cf.spc,pkgPrice:food.pkgPrice??cf.pkgPrice,sz:food.sz||cf.sz}:food;}
+function withSaved(food){const cf=(S.customFoods||[]).find(x=>foodKey(x)===foodKey(food));return cf?{...food,spc:food.spc??cf.spc,pkgPrice:food.pkgPrice??cf.pkgPrice,sz:food.sz||cf.sz,cnt:food.cnt||cf.cnt}:food;}
 function foodKey(f){return(f.name+"|"+(f.brand||"")+"|"+(f.serving||"")).toLowerCase();}
 function rememberedCost(f){const m=S.money;return m&&m.foodCost?m.foodCost[foodKey(f)]:null;}
 function itemCost(it){return it.cps!=null?it.cps*(it.qty||1):null;}
@@ -1577,19 +1583,19 @@ function dayCost(k){let tot=0,n=0,missing=0;(day(k).items||[]).forEach(it=>{cons
 function curCps(){const e=$("#fcost");if(!e)return null;const x=parseFloat(e.value);return isNaN(x)?null:x;}
 function curUnit(){return(V.fpending&&V.fpending.unit)||"srv";}
 function curQty(){const f=V.fpending.food;return toServings(f,$("#fqty").value,curUnit());}
-function qtyChips(u){if(u==="pkg")return[[0.25,"¼"],[0.33,"⅓"],[0.5,"½"],[0.75,"¾"],[1,"All"]].map(([x,l])=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${l}</button>`).join("");return(u==="srv"?[0.5,1,1.5,2,3]:u==="g"?[50,100,150,200,250]:u==="oz"?[2,4,6,8,12]:u==="lb"?[0.25,0.5,0.75,1,1.5]:u==="fl oz"?[4,8,12,16,20]:u==="ml"?[100,250,355,500]:u==="cup"?[0.25,0.5,1,1.5,2]:u==="kg"?[0.25,0.5,1]:u==="L"?[0.5,1,2]:[1,2,3,4]).map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");}
+function qtyChips(u){if(isCnt(u))return[1,2,3,4,6,8].map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");if(u==="pkg")return[[0.25,"¼"],[0.33,"⅓"],[0.5,"½"],[0.75,"¾"],[1,"All"]].map(([x,l])=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${l}</button>`).join("");return(u==="srv"?[0.5,1,1.5,2,3]:u==="g"?[50,100,150,200,250]:u==="oz"?[2,4,6,8,12]:u==="lb"?[0.25,0.5,0.75,1,1.5]:u==="fl oz"?[4,8,12,16,20]:u==="ml"?[100,250,355,500]:u==="cup"?[0.25,0.5,1,1.5,2]:u==="kg"?[0.25,0.5,1]:u==="L"?[0.5,1,2]:[1,2,3,4]).map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");}
 function amountSheet(food,editIdx,keepUnit){food=withSaved(food);
   const mb=V.mbuild&&V.mbItem!=null&&V.mdraft?V.mdraft.items[V.mbItem]:null;
   const it=mb||(editIdx!=null?day(V.fday||dayKey()).items[editIdx]:null);
   const us=[...(food.spc>0?["pkg"]:[]),...unitsFor(food)];const lastU=((S.settings.lastUnit||{})[foodKey(food)]);
-  let unit=keepUnit||(it?(it.unit||"srv"):(lastU||"srv"));if(unit!=="srv"&&!us.includes(unit))unit="srv";
+  let unit=keepUnit||(it?(it.unit||"srv"):(lastU||(cntOf(food)?cntOf(food).u:"srv")));if(unit!=="srv"&&!us.includes(unit))unit="srv";
   V.fpending={food,editIdx,unit};
-  const qty=it?it.qty:(unit==="srv"?1:toServings(food,fromServings(food,1,unit),unit));
+  const qty=it?it.qty:1;
   const amt=it&&it.unit===unit&&it.amt!=null?it.amt:r2(fromServings(food,qty,unit));
   const cps=it?(it.cps??null):rememberedCost(food);const sz=szOf(food);const st=USTEP[unit]||1;
   sheet(`<h2>${esc(food.name)}</h2><div class="sub">${esc(food.brand||"")}${food.brand?" · ":""}1 serving = ${esc(food.serving)}${sz&&!new RegExp("\\b"+sz.u.replace(" ","\\s?")+"\\b","i").test(food.serving)?` (${r2(sz.a)} ${sz.u})`:""}</div>
-   <div class="q"><label>Enter amount in</label><div class="chips"><button class="chip" data-act="f_unit" data-v="srv" aria-pressed="${unit==="srv"}">Servings</button>${us.map(u=>`<button class="chip" data-act="f_unit" data-v="${u}" aria-pressed="${unit===u}">${u==="pkg"?"Part of package":u}</button>`).join("")}${unitsFor(food).length?"":(food.recipeId?"":`<button class="chip" data-act="f_editNut">Set serving weight to use oz / g / lb…</button>`)}</div></div>
-   <div class="top"><button class="btn" data-act="f_qty" data-v="-${st}">−${st===0.25?"¼":st}</button><div class="grow field"><label class="lbl" for="fqty">${unit==="srv"?"Servings":unit==="pkg"?`How much of the package (1 = all ${r2(food.spc)} servings)`:"Amount ("+unit+")"}</label><input type="number" inputmode="decimal" step="any" min="0" id="fqty" value="${unit==="srv"?r2(qty):amt}" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="f_qty" data-v="${st}">+${st===0.25?"¼":st}</button></div>
+   <div class="q"><label>Enter amount in</label><div class="chips"><button class="chip" data-act="f_unit" data-v="srv" aria-pressed="${unit==="srv"}">Servings</button>${us.map(u=>`<button class="chip" data-act="f_unit" data-v="${u}" aria-pressed="${unit===u}">${u==="pkg"?"Part of package":isCnt(u)?plur(u,2):u}</button>`).join("")}${unitsFor(food).length?"":(food.recipeId?"":`<button class="chip" data-act="f_editNut">Set serving weight to use oz / g / lb…</button>`)}</div></div>
+   <div class="top"><button class="btn" data-act="f_qty" data-v="-${st}">−${st===0.25?"¼":st}</button><div class="grow field"><label class="lbl" for="fqty">${unit==="srv"?"Servings":unit==="pkg"?`How much of the package (1 = all ${r2(food.spc)} servings)`:isCnt(unit)?`Number of ${plur(unit,2)}`:"Amount ("+unit+")"}</label><input type="number" inputmode="decimal" step="any" min="0" id="fqty" value="${unit==="srv"?r2(qty):amt}" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="f_qty" data-v="${st}">+${st===0.25?"¼":st}</button></div>
    <div class="chips">${qtyChips(unit)}${unit==="srv"&&food.recipeId&&recipeById(food.recipeId)?`<button class="chip" data-act="f_qtyset" data-v="${recipeById(food.recipeId).servings}">Whole batch</button>`:""}</div>
    <div class="field"><label class="lbl" for="fcost">Cost per serving ($, optional)</label><input type="number" inputmode="decimal" step="0.01" min="0" id="fcost" value="${cps??""}" placeholder="e.g. 1.25"></div>
    <div id="fprev">${amountPreview(food,qty,cps)}</div>
@@ -1605,15 +1611,17 @@ function amountPreview(food,q,cps){const n=food.n;q=+q||0;const u=V.fpending&&V.
   <div class="sub num">Total carbs ${r1(n.c*q)} g · fiber ${r1(n.fib*q)} g${n.sa?` · erythritol-type sugar alcohols ${r1(n.sa*q)} g (all subtracted)`:""}${n.sa2?` · other sugar alcohols ${r1(n.sa2*q)} g (half subtracted)`:""}${n.al?` · allulose ${r1(n.al*q)} g (all subtracted)`:""} · fat ${r1(n.f*q)} g · sodium ${Math.round(n.na*q)} mg</div>`;}
 function customSheet(barcode,base,editIdx,pre){setTimeout(cfNet,0);V.fbarcode=barcode||null;V.fimp=null;V.fedit=base?{base,editIdx}:null;V.fpre=pre||null;
   const src=base||pre||null;
-  const n=src?src.n:{};const sz=src?szOf(src):null;const cnt=src&&!sz?(String(src.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]:null;
-  const desc=src&&!sz?src.serving||"":"";const spc=src?src.spc:null;const pp=src?src.pkgPrice:null;
+  const n=src?src.n:{};const sz=src?szOf(src):null;const pc=src?cntOf(src):null;const cnt=src&&!sz?(pc?pc.n:(String(src.serving||"").match(/^\s*(\d*\.?\d+)/)||[])[1]):null;
+  const mainU=sz?sz.u:pc?pc.u:"each";
+  const desc=src&&!sz?String(src.serving||"").replace(/\s*·\s*about.*$/,"").replace(/^\s*\d+\s+\d+\/\d+|^\s*\d+\/\d+|^\s*\d*\.?\d+/,"").replace(pc?new RegExp("^\\s*"+pc.u+"(e?s)?\\b","i"):/^$/,"").replace(/^\s*(ies)\b/i,"").trim():"";const spc=src?src.spc:null;const pp=src?src.pkgPrice:null;
   const f=(id,l,ph,val,txt)=>`<div class="field"><label class="lbl" for="${id}">${l}</label><input type="${txt?"text":"number"}" inputmode="${txt?"text":"decimal"}" ${txt?"":'step="any"'} id="${id}" placeholder="${ph}" value="${val==null?"":esc(String(val))}"></div>`;
   const isCustom=base&&String(base.id||"").startsWith("c");
   sheet(`<h2>${base?"Edit "+esc(base.name):pre?"Check what was read":"Create food from label"}</h2>${pre?labelReadNote(pre):""}<div class="sub" ${pre?'hidden':''}>${base?`Change any number that doesn't match your label. ${isCustom?"Your saved food is updated.":"Your version replaces the built-in one from now on."}`:`${barcode?`Barcode ${esc(barcode)} isn't in the database yet. `:""}Copy the numbers from the Nutrition Facts panel for one serving.${barcode?" Next time you scan it, it fills in automatically.":""}`}</div>
    ${f("cf_name","Name","e.g. Rotisserie chicken",src?src.name:"",1)}${f("cf_brand","Brand / store (optional)","e.g. Walmart",src?src.brand:"",1)}
-   <div class="q"><label>One serving is</label><div class="btns">${f("cf_sa_amt","Amount","e.g. 6",sz?r2(sz.a):cnt)}<div class="field" style="flex:1"><label class="lbl" for="cf_unit">Unit</label><select id="cf_unit">${["each",...UNITS].map(u=>`<option ${(sz?sz.u:"each")===u?"selected":""}>${u}</option>`).join("")}</select></div></div>
-   ${f("cf_serv","Description (optional)","e.g. cooked, 1 can, 1 patty",desc&&!sz?desc.replace(/^\s*\d*\.?\d+\s*/,""):(src&&sz?String(src.serving||"").replace(/^[^a-z]*\d[^a-z]*(fl\.?\s?oz|oz|lbs?|g|kg|ml|cups?|tbsp|tsp|l)\b\s*/i,""):""),1)}
-   <div class="sub">Pick oz, g, lb, fl oz, etc. so you can later log any exact amount (8 oz of a 6 oz-serving steak = 1.33 servings, calculated for you).</div></div>
+   <div class="q"><label>One serving is</label><div class="btns">${f("cf_sa_amt","Amount","e.g. 6",sz?r2(sz.a):cnt)}<div class="field" style="flex:1"><label class="lbl" for="cf_unit">Unit</label><select id="cf_unit"><option value="each" ${mainU==="each"?"selected":""}>serving</option><optgroup label="Weight / volume">${UNITS.map(u=>`<option ${mainU===u?"selected":""}>${u}</option>`).join("")}</optgroup><optgroup label="Count">${CNTU.map(u=>`<option value="${u}" ${mainU===u?"selected":""}>${plur(u,2)}</option>`).join("")}</optgroup></select></div></div>
+   <div class="btns">${f("cf_cnt","Slices / pieces per serving (optional)","e.g. 15",sz&&pc?r2(pc.n):null)}<div class="field" style="flex:1"><label class="lbl" for="cf_cntu">Counted as</label><select id="cf_cntu">${CNTU.map(u=>`<option value="${u}" ${(pc?pc.u:"slice")===u?"selected":""}>${plur(u,2)}</option>`).join("")}</select></div></div>
+   ${f("cf_serv","Description (optional)","e.g. cooked, 1 can, 1 patty",desc&&!sz?desc.replace(/^\s*\d*\.?\d+\s*/,""):(src&&sz?String(src.serving||"").replace(/^[^a-z]*\d[^a-z]*(fl\.?\s?oz|oz|lbs?|g|kg|ml|cups?|tbsp|tsp|l)\b\s*/i,"").replace(/\s*·\s*about.*$/,""):""),1)}
+   <div class="sub">Pick oz, g, lb, fl oz, etc. so you can log any exact amount (8 oz of a 6 oz-serving steak = 1.33 servings). For lunchmeat, pepperoni, bacon and the like, choose <b>slices</b> as the unit, or add the slice count per serving (e.g. 1 oz = 15 slices) so you can log by the slice.</div></div>
    <div class="q"><label>The whole package</label><div class="btns">${f("cf_spc","Servings per package","e.g. 7",spc)}${f("cf_pp","Price paid ($)","e.g. 4.98",pp)}</div>
    <div class="sub" id="cf_cpsNote">${spc>0&&pp>0?`= ${$$(pp/spc)} per serving`:"Add both and the app works out the cost per serving, and you can log a fraction of the package (like ¼ of the chicken)."}</div>
    ${base?"":`<label class="chk"><input type="checkbox" id="cf_buy" ${pre?"checked":""}> Also add the price to this week's purchases</label><div class="field"><label class="lbl" for="cf_store">Store</label><select id="cf_store">${allStores().map(st=>`<option ${st===(src&&src.brand)||(!(src&&src.brand)&&st==="Walmart")?"selected":""}>${esc(st)}</option>`).join("")}</select></div>`}</div>
@@ -2062,7 +2070,9 @@ document.addEventListener("click",ev=>{
     case"f_customSave":{const val=id=>{const x=parseFloat($("#"+id).value);return isNaN(x)?0:x;};const name=$("#cf_name").value.trim();if(!name){toast("Give the food a name");break;}
       const spcV=parseFloat($("#cf_spc").value),ppV=parseFloat($("#cf_pp").value);
       const e=V.fedit;const base=e&&e.base;const sa=parseFloat($("#cf_sa_amt").value);const su=$("#cf_unit").value;const desc=$("#cf_serv").value.trim();
-      const sz=sa>0&&ufam(su)?{a:sa,u:su}:null;const serving=sz?`${r2(sa)} ${su}${desc?" "+desc:""}`:(sa>0?`${r2(sa)} ${desc||"serving"}`:(desc||"1 serving"));
+      const cn=parseFloat($("#cf_cnt").value),cu=$("#cf_cntu").value;
+      const sz=sa>0&&ufam(su)?{a:sa,u:su}:null;let serving=sz?`${r2(sa)} ${su}${desc?" "+desc:""}`:isCnt(su)&&sa>0?`${r2(sa)} ${plur(su,sa)}${desc?" "+desc:""}`:(sa>0?`${r2(sa)} ${desc||"serving"}`:(desc||"1 serving"));
+      if(!isCnt(su)&&cn>0)serving+=` · about ${r2(cn)} ${plur(cu,cn)}`;
       const isCustom=base&&String(base.id||"").startsWith("c");
       const food={id:isCustom?base.id:"c"+uidGen(),name,brand:$("#cf_brand").value.trim(),serving,cat:base&&base.cat&&base.cat!=="online"?base.cat:"custom",barcode:V.fbarcode||(base&&base.barcode)||undefined,n:{cal:val("cf_cal"),c:val("cf_c"),fib:val("cf_fib"),sug:val("cf_sug"),sa:val("cf_ery"),sa2:val("cf_sa2"),al:val("cf_al"),p:val("cf_p"),f:val("cf_f"),na:val("cf_na")}};
       if(!food.n.sa2)delete food.n.sa2;if(!food.n.al)delete food.n.al;
@@ -2601,7 +2611,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.13b";
+const APP_VERSION="2026.11.13c";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
