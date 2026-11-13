@@ -134,7 +134,7 @@ body.privacy #app{filter:blur(18px)}
 .tile.klight{border-top-color:var(--klight)}
 .chk{display:flex;align-items:center;gap:10px;font-size:15px;padding:4px 0}.chk input{width:22px;height:22px;accent-color:var(--accent)}
 .mrowc{display:flex;justify-content:space-between;gap:8px}.cost{font-weight:700;white-space:nowrap}.cost.none{color:var(--accent);font-weight:600;font-size:13px}
-.glance .big{font-family:var(--display);font-size:44px;font-weight:700;line-height:1}.glance .kv3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.glance .stat .v{font-size:22px}.glance .stat .k{font-size:11.5px}.card.kout{border-color:rgba(255,93,93,.6)}
+.glance .big{font-family:var(--display);font-size:44px;font-weight:700;line-height:1}.kv3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.glance .stat .v{font-size:22px}.glance .stat .k{font-size:11.5px}.card.kout{border-color:rgba(255,93,93,.6)}
 .frow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.frow:last-of-type{border-bottom:0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:middle}
 .obhead{display:flex;flex-direction:column;gap:6px}.obbar{height:6px;background:var(--raised);border-radius:99px;overflow:hidden}.obbar i{display:block;height:100%;background:var(--accent)}
@@ -1230,7 +1230,7 @@ function vFood(){
       `<button class="row" data-act="f_add" data-v="${m}"><div class="grow"><span class="t" style="color:var(--accent)">+ Add to ${l.toLowerCase()}</span></div></button></div>`;});
   const keto=!(S.profile&&S.profile.diet==="none");
   if(!S.profile&&k===dayKey())h=h.replace(/^/,"")+`<div class="card hot"><h3>Get to know you</h3><div class="sub">Answer a few quick questions (about 2 minutes) so the app can fine-tune your calories, protein, carbs and workout plan to you.</div><div class="btns"><button class="btn primary" data-act="ob_start">Start</button><button class="btn ghost" data-act="ob_later">Not now</button></div></div>`;
-  h+=(keto?ketoCheckCard(k):"")+checkinCard(k)+(keto?ketoRecordCard():"")+outlookCard()+insightsCard()+tipsCard()+activityCard(k);
+  h+=(keto?ketoCheckCard(k):"")+checkinCard(k)+(keto?ketoHistoryCard()+ketoRecordCard():"")+outlookCard()+insightsCard()+tipsCard()+activityCard(k);
   h+=`<div class="sub">Built-in nutrition values are typical label numbers. Brands change recipes, so check your label and use "Create food from label" for anything that differs.</div>`;
   return h;
 }
@@ -1251,17 +1251,39 @@ const kLabel=s=>(KST.find(x=>x[0]===kNorm(s))||[])[1]||"";
 const kFromBlood=x=>x<0.5?"out":x<1.5?"light":"high";
 const KMETH=[["blood","Blood meter"],["urine","Urine strip"],["breath","Breath meter"],["feel","How I feel"]];
 function ketoCheckCard(k){
-  const kt=day(k).keto||{};const ket=day(k).ketones;
-  const cs=kNorm(kt.status);
-  const sugg=ket!=null&&(kt.method||"blood")==="blood"?kFromBlood(ket):null;
-  return `<div class="card ${cs==="high"?"kin":cs==="light"?"klight":cs==="out"?"kout":""}"><h3>Ketosis check</h3>
-   <div class="sub">Did you test today? Pick your level and the app learns what keeps you in ketosis and what knocks you out.</div>
-   <div class="kbtns" role="radiogroup" aria-label="Ketosis level">${KST.map(([v,l,ic])=>`<button class="kbtn ${v==="high"?"in":v}" data-act="f_keto" data-v="${v}" role="radio" aria-pressed="${cs===v}" aria-checked="${cs===v}"><b>${ic}</b> ${l}</button>`).join("")}</div>
-   ${kt.status?`<div class="q"><label>When did you test?</label><div class="chips"><button class="chip" data-act="f_ketoWhen" data-v="am" aria-pressed="${(kt.when||"am")==="am"}">Morning (shows yesterday's food)</button><button class="chip" data-act="f_ketoWhen" data-v="pm" aria-pressed="${kt.when==="pm"}">Evening (shows today's food)</button></div></div>
-   <div class="q"><label>How?</label><div class="chips">${KMETH.map(([m,l])=>`<button class="chip" data-act="f_ketoMeth" data-v="${m}" aria-pressed="${(kt.method||"blood")===m}">${l}</button>`).join("")}</div></div>
-   <div class="btns"><div class="field" style="flex:1"><label class="lbl" for="ketVal">Reading ${(kt.method||"blood")==="urine"?"(mmol/L from the strip color, optional)":"(mmol/L, optional)"}</label><input type="number" inputmode="decimal" step="0.1" id="ketVal" value="${ket??""}" placeholder="e.g. 0.8"></div><button class="btn" data-act="f_ketoVal" style="align-self:flex-end">Save</button><button class="btn ghost" data-act="f_keto" data-v="" style="align-self:flex-end">Clear</button></div>`:""}
-   ${sugg&&sugg!==cs?`<div class="ins warn">A blood reading of ${ket} mmol/L usually means <b>${kLabel(sugg).toLowerCase()}</b> (${sugg==="out"?"below 0.5":sugg==="light"?"0.5 to 1.4":"1.5 or higher"}). <button class="pill" data-act="f_keto" data-v="${sugg}">Use that</button></div>`:""}
-   <div class="sub">Guide (blood): under 0.5 mmol/L = not in keto · 0.5–1.4 = slightly in · 1.5–3.0 = high in keto. Urine strips: light pink = slightly in, dark pink/purple = high, but strips get less reliable after the first few weeks.</div></div>`;
+  const cs=kNorm((day(k).keto||{}).status);
+  return `<div class="card ${cs==="high"?"kin":cs==="light"?"klight":cs==="out"?"kout":""}"><h3>Ketosis</h3>
+   <div class="kbtns" role="radiogroup" aria-label="Ketosis level">${KST.map(([v,l,ic])=>`<button class="kbtn ${v==="high"?"in":v}" data-act="f_keto" data-v="${cs===v?"":v}" role="radio" aria-pressed="${cs===v}" aria-checked="${cs===v}"><b>${ic}</b> ${l}</button>`).join("")}</div>
+   ${cs?`<div class="sub">Tap it again to clear.</div>`:""}</div>`;
+}
+/* history over days, weeks and months */
+function ketoHistoryCard(){
+  const rng=V.kRange||90;const today=dayKey();const start=shiftDay(today,-(rng-1));
+  const st=k=>{const x=S.days&&S.days[k]&&S.days[k].keto;return x&&x.status?kNorm(x.status):null;};
+  const ks=[];for(let i=rng-1;i>=0;i--)ks.push(shiftDay(today,-i));
+  const marked=ks.filter(st);const c={high:0,light:0,out:0};marked.forEach(k=>c[st(k)]++);
+  let cur=0;for(let i=ks.length-1;i>=0;i--){const v=st(ks[i]);if(!v)continue;if(v==="out")break;cur++;}
+  let best=0,run=0;Object.keys(S.days||{}).sort().forEach(k=>{const v=st(k);if(!v)return;if(v==="out")run=0;else{run++;best=Math.max(best,run);}});
+  let h=`<div class="card"><h3>Keto history</h3><div class="chips">${[[30,"30 days"],[90,"3 months"],[182,"6 months"],[365,"1 year"]].map(([v,l])=>`<button class="chip" data-act="f_kRange" data-v="${v}" aria-pressed="${rng===v}">${l}</button>`).join("")}</div>`;
+  if(!Object.keys(S.days||{}).some(k=>st(k)))return h+`<div class="sub">Tap Not in keto, Slightly in keto or High in keto each day. Your history builds here by day, week and month.</div></div>`;
+  h+=`<div class="kv3"><div class="stat"><div class="v num" style="color:var(--good)">${c.high}</div><div class="k">High</div></div><div class="stat"><div class="v num" style="color:var(--klight)">${c.light}</div><div class="k">Slightly in</div></div><div class="stat"><div class="v num" style="color:var(--bad)">${c.out}</div><div class="k">Not in</div></div></div>
+   <div class="sub num"><b>${marked.length?Math.round((c.high+c.light)/marked.length*100):0}%</b> of marked days in keto · current streak <b>${cur}</b> · best streak <b>${best}</b> · ${marked.length} of ${rng} days marked</div>`;
+  // calendar grid: one column per week, Monday at the top
+  const first=weekStart(start);const cols=[];for(let w=first;w<=today;w=shiftDay(w,7))cols.push(w);
+  const cs=Math.min(16,Math.floor(560/cols.length)-2),gap=2,W=30+cols.length*(cs+gap),H=7*(cs+gap)+18;
+  let g="";cols.forEach((w,ci)=>{for(let r=0;r<7;r++){const k=shiftDay(w,r);if(k<start||k>today)continue;const v=st(k);
+      g+=`<rect x="${30+ci*(cs+gap)}" y="${r*(cs+gap)}" width="${cs}" height="${cs}" rx="2" fill="${kCol(v)||"var(--raised)"}"><title>${k}${v?": "+kLabel(v):""}</title></rect>`;}
+    const d=shiftDay(w,6);if(ci===0||+d.slice(8)<=7)g+=`<text x="${30+ci*(cs+gap)}" y="${7*(cs+gap)+13}" font-size="11" fill="var(--muted)">${fmtDate(d+"T12:00:00",{month:"short"})}</text>`;});
+  ["M","W","F"].forEach((l,i)=>g+=`<text x="0" y="${[0,2,4][i]*(cs+gap)+cs-2}" font-size="11" fill="var(--muted)">${l}</text>`);
+  h+=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W*1.6}px" role="img" aria-label="Ketosis by day">${g}</svg>
+   <div class="legend"><span><i style="background:var(--good)"></i>High</span><span><i style="background:var(--klight)"></i>Slightly in</span><span><i style="background:var(--bad)"></i>Not in</span><span><i style="background:var(--raised)"></i>Not marked</span></div>`;
+  // by week (30 days / 3 months) or by month (6 months / 1 year)
+  const byMonth=rng>90;const groups=new Map();marked.forEach(k=>{const key=byMonth?k.slice(0,7):weekStart(k);const o=groups.get(key)||{high:0,light:0,out:0};o[st(k)]++;groups.set(key,o);});
+  h+=`<div class="q"><label>By ${byMonth?"month":"week"}</label>${[...groups.entries()].reverse().map(([key,o])=>{const n=o.high+o.light+o.out;
+     const lbl=byMonth?fmtDate(key+"-15T12:00:00",{month:"long",year:"numeric"}):"Week of "+fmtDate(key+"T12:00:00",{month:"short",day:"numeric"});
+     return `<div class="meter"><div class="mrow"><span>${lbl}</span><span class="num">${Math.round((o.high+o.light)/n*100)}% in · ${o.high} high · ${o.light} slight · ${o.out} out</span></div>
+      <div class="bar" style="display:flex"><i style="width:${o.high/n*100}%;background:var(--good);border-radius:0"></i><i style="width:${o.light/n*100}%;background:var(--klight);border-radius:0"></i><i style="width:${o.out/n*100}%;background:var(--bad);border-radius:0"></i></div></div>`;}).join("")}</div>`;
+  return h+`</div>`;
 }
 function ketoData(){
   const out=[];
@@ -1272,11 +1294,10 @@ function ketoData(){
 }
 function ketoRecordCard(){
   const kd=ketoData();
-  let h=`<div class="card"><h3>Ketosis record</h3>`;
+  let h=`<div class="card"><h3>What affects your ketosis</h3><div class="sub">Each mark is compared with the food you logged the day before (morning results reflect yesterday\'s eating).</div>`;
   if(!kd.length)return h+`<div class="sub">Mark "Not in keto", "Slightly in keto" or "High in keto" on days you test. After a week or two the app shows which foods kept you in, which knocked you out, your personal carb limit, and how ketosis lines up with your weight.</div></div>`;
   const last30=kd.filter(x=>x.k>=shiftDay(dayKey(),-30));const ins=last30.filter(x=>x.in).length;const highs=last30.filter(x=>x.status==="high").length;
   let streak=0;for(let i=kd.length-1;i>=0&&kd[i].in;i--)streak++;
-  h+=`<div class="kv"><div class="stat"><div class="v num">${streak}</div><div class="k">Tests in a row in ketosis</div></div><div class="stat"><div class="v num">${last30.length?Math.round(ins/last30.length*100):0}%</div><div class="k">In keto (${ins} of ${last30.length} tests, 30 days${highs?` · ${highs} high`:""})</div></div></div>`;
   h+=ketoChart(kd);
   // personal carb threshold
   const withNet=kd.filter(x=>x.net!=null);const inN=withNet.filter(x=>x.in).map(x=>x.net),outN=withNet.filter(x=>x.status==="out").map(x=>x.net);
@@ -1996,6 +2017,7 @@ document.addEventListener("click",ev=>{
       saveDay(k);saveProfile();closeSheet();render();break;}
     case"f_hImport":healthResult(importHealth($("#hTxt").value));break;
     case"f_hPaste":(async()=>{try{const t=await navigator.clipboard.readText();if(!t){toast("Clipboard is empty. Run the Shortcut first.");return;}healthResult(importHealth(t));}catch(e){toast("Couldn't read the clipboard here. Long-press the box below and tap Paste.");$("#hTxt")?.focus();}})();break;
+    case"f_kRange":V.kRange=+v;render();break;
     case"f_keto":{const d=day(k,true);if(!v){delete d.keto;}else d.keto={...(d.keto||{when:"am",method:"blood"}),status:v,at:Date.now()};saveDay(k);render();if(v)toast("Marked: "+kLabel(v).toLowerCase());break;}
     case"f_ketoWhen":{const d=day(k,true);d.keto={...(d.keto||{}),when:v};saveDay(k);render();break;}
     case"f_ketoMeth":{const d=day(k,true);d.keto={...(d.keto||{}),method:v};saveDay(k);render();break;}
@@ -2496,7 +2518,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.12b";
+const APP_VERSION="2026.11.13";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
