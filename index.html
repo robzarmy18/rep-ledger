@@ -418,7 +418,7 @@ function migrate(){
    ============================================================ */
 const LS_KEY="repledger.v1";
 const LB_PER_KG=2.20462;
-let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[],shop:null,profile:null,customProgram:null,money:null,plan:null,recipes:[],recipesSeeded:false};
+let S={settings:{unit:"lb",rest:90,lo:8,hi:12,program:null,rampLeft:8,goal:"cut",goalW:175,deloadEvery:6,sinceDeload:0,deloadLeft:0,deloadSnooze:0},workouts:[],custom:[],lastOpts:{},deleted:[],draft:null,profileAt:0,draftAt:0,routines:null,bw:[],days:{},customFoods:[],recentFoods:[],shop:null,profile:null,customProgram:null,money:null,plan:null,recipes:[],recipesSeeded:false,meals:[]};
 let V={tab:"train",view:"home",group:null,exId:null,opts:{},editIdx:null,idx:null,q:"",detailId:null,progKey:null,metric:"top",saved:null,confirmDel:false};
 const Cloud={db:null,profile:null,workouts:null,draft:null,status:"local",chains:{},timers:{}};
 
@@ -435,7 +435,7 @@ function queueWrite(key,ref,fn){
   });
 }
 function debounced(key,ms,fn){clearTimeout(Cloud.timers[key]);Cloud.timers[key]=setTimeout(fn,ms);}
-function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,recipes:S.recipes||[],recipesSeeded:!!S.recipesSeeded,money:S.money||null,plan:S.plan||null,profile:S.profile||null,customProgram:S.customProgram||null,shop:S.shop,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
+function profileBody(){return{settings:S.settings,custom:S.custom,lastOpts:S.lastOpts,routines:S.routines,bw:S.bw,recipes:S.recipes||[],recipesSeeded:!!S.recipesSeeded,meals:S.meals||[],money:S.money||null,plan:S.plan||null,profile:S.profile||null,customProgram:S.customProgram||null,shop:S.shop,customFoods:S.customFoods,recentFoods:(S.recentFoods||[]).slice(0,30),deleted:S.deleted.slice(-500),updatedAt:S.profileAt};}
 function saveProfile(){
   S.profileAt=Date.now();saveLocal();
   if(Cloud.profile)debounced("profile",1200,()=>queueWrite("profile",Cloud.profile,r=>r.set(profileBody())));
@@ -475,7 +475,7 @@ async function initCloud(){
     const pd=p.exists?p.data():null;
     if(pd){
       S.deleted=[...new Set([...(S.deleted||[]),...(pd.deleted||[])])];
-      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.recipes&&pd.recipes.length)S.recipes=JSON.parse(JSON.stringify(pd.recipes));if(pd.recipesSeeded)S.recipesSeeded=true;if(pd.money)S.money=JSON.parse(JSON.stringify(pd.money));if(pd.plan)S.plan=JSON.parse(JSON.stringify(pd.plan));if(pd.profile)S.profile=JSON.parse(JSON.stringify(pd.profile));if(pd.customProgram)S.customProgram=JSON.parse(JSON.stringify(pd.customProgram));if(pd.shop)S.shop=JSON.parse(JSON.stringify(pd.shop));if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
+      if((pd.updatedAt||0)>(S.profileAt||0)){S.settings={...S.settings,...(pd.settings||{})};S.custom=pd.custom||[];S.lastOpts=pd.lastOpts||{};if(pd.routines)S.routines=JSON.parse(JSON.stringify(pd.routines));S.bw=pd.bw?JSON.parse(JSON.stringify(pd.bw)):S.bw;if(pd.recipes&&pd.recipes.length)S.recipes=JSON.parse(JSON.stringify(pd.recipes));if(pd.recipesSeeded)S.recipesSeeded=true;if(pd.meals)S.meals=JSON.parse(JSON.stringify(pd.meals));if(pd.money)S.money=JSON.parse(JSON.stringify(pd.money));if(pd.plan)S.plan=JSON.parse(JSON.stringify(pd.plan));if(pd.profile)S.profile=JSON.parse(JSON.stringify(pd.profile));if(pd.customProgram)S.customProgram=JSON.parse(JSON.stringify(pd.customProgram));if(pd.shop)S.shop=JSON.parse(JSON.stringify(pd.shop));if(pd.customFoods)S.customFoods=JSON.parse(JSON.stringify(pd.customFoods));if(pd.recentFoods)S.recentFoods=JSON.parse(JSON.stringify(pd.recentFoods));S.profileAt=pd.updatedAt;}
     }
     // workouts: union, minus deleted
     const del=new Set(S.deleted);const map=new Map();
@@ -675,7 +675,7 @@ function render(){
   if(LOCKED){renderLock();return;}
   document.body.classList.toggle("onboarding",V.view==="welcome");
   renderNav();
-  const views={recipes:vRecipes,recipe:vRecipe,recipeEdit:vRecipeEdit,money:vMoney,welcome:vWelcome,today:vToday,food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
+  const views={meals:vMeals,mealEdit:vMealEdit,recipes:vRecipes,recipe:vRecipe,recipeEdit:vRecipeEdit,money:vMoney,welcome:vWelcome,today:vToday,food:vFood,foodAdd:vFoodAdd,programs:vPrograms,pickGroup:vPickGroup,routine:vRoutine,home:vHome,group:vGroup,options:vOptions,log:vLog,saved:vSaved,history:vHistory,detail:vDetail,progress:vProgress,progDetail:vProgDetail,settings:vSettings,custom:vCustom};
   $("#app").innerHTML=(views[V.view]||vHome)();
   T.key="";renderTimer();
 }
@@ -1187,6 +1187,81 @@ function histFoods(){const m=new Map();Object.values(S.days||{}).forEach(d=>(d.i
   return[...m.values()].sort((a,b)=>b.n-a.n);}
 function allFoods(){const rp=new Set((S.customFoods||[]).map(f=>f.replaces).filter(Boolean));return[...(S.customFoods||[]),...(S.recipes||[]).map(recipeFood),...FOODS].filter(f=>!(String(f.id||"").startsWith("c")?false:rp.has(foodKey(f))));}
 
+/* ---------- My meals: foods you eat together, logged in one tap.
+   Each meal stores its ingredients (amount, nutrition, cost per serving). Logging adds every ingredient to the day,
+   scaled to how much you ate, so nutrition, cost and the keto food analysis stay per ingredient. ---------- */
+function compFrom(f,q,u,amt,cps){const c={name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",qty:Math.round(q*10000)/10000};
+  if(f.sz)c.sz=f.sz;if(f.spc)c.spc=f.spc;if(f.recipeId)c.recipeId=f.recipeId;if(u&&u!=="srv"){c.unit=u;c.amt=amt;}
+  const cp=cps!=null?cps:(f.cps!=null?f.cps:rememberedCost(f));if(cp!=null)c.cps=Math.round(cp*100)/100;return c;}
+function mealTotals(m,scale){scale=scale??1;const t={cal:0,c:0,fib:0,sug:0,p:0,f:0,na:0,net:0,cost:0,priced:0,unpriced:0};
+  (m.items||[]).forEach(c=>{const q=(c.qty||1)*scale;["cal","c","fib","sug","p","f","na"].forEach(x=>t[x]+=(c.n[x]||0)*q);t.net+=netC(c.n)*q;if(c.cps!=null){t.cost+=c.cps*q;t.priced++;}else t.unpriced++;});return t;}
+function mealRow(m){const sv=Math.max(1,+m.servings||1);const t=mealTotals(m,1/sv);
+  return `<button class="row" data-act="ml_log" data-v="${esc(m.id)}"><div class="grow"><span class="t">${esc(m.name)}</span><span class="s num">${m.items.length} ingredient${m.items.length===1?"":"s"}${sv>1?` · makes ${sv} portions`:""} · per ${sv>1?"portion":"meal"}: ${Math.round(t.cal)} cal · ${r1(t.net)} g net · ${Math.round(t.p)} g protein${t.priced?` · ${$$(t.cost)}`:""}</span></div><span class="pill ok">Log</span></button>`;}
+function vMeals(){
+  let h=header("My meals","Foods you eat together, saved once and logged in one tap. Every ingredient's nutrition and cost is tracked.","ml_back");
+  h+=`<button class="btn primary block" data-act="ml_new">+ Create a meal</button>`;
+  const ms=S.meals||[];
+  if(!ms.length)h+=`<div class="empty">No meals yet. Create one here, or on the Food tab tap "Save these as a meal" under any lunch or dinner you've logged.</div>`;
+  else h+=`<div class="list">${ms.map(m=>{const sv=Math.max(1,+m.servings||1);const t=mealTotals(m,1/sv);const w=mealTotals(m);
+    return `<div class="row" style="align-items:flex-start"><div class="grow"><span class="t">${esc(m.name)}</span><span class="s">${esc(m.items.map(c=>c.name).join(", "))}</span>
+      <span class="s num">Per ${sv>1?"portion (1 of "+sv+")":"meal"}: ${Math.round(t.cal)} cal · ${r1(t.net)} g net carbs · ${r1(t.sug)} g sugar · ${Math.round(t.p)} g protein · ${Math.round(t.f)} g fat${w.priced?` · <b>${$$(t.cost)}</b>`:""}</span>
+      ${w.priced?`<span class="s num">Whole meal costs ${$$(w.cost)}${w.unpriced?` (${w.unpriced} ingredient${w.unpriced===1?"":"s"} not priced)`:""}</span>`:""}</div>
+      <div style="display:flex;flex-direction:column;gap:6px"><button class="btn primary" data-act="ml_log" data-v="${esc(m.id)}">Log</button><button class="btn" data-act="ml_edit" data-v="${esc(m.id)}">Edit</button></div></div>`;}).join("")}</div>`;
+  return h;}
+function vMealEdit(){
+  const m=V.mdraft;if(!m)return vMeals();const sv=Math.max(1,+m.servings||1);const w=mealTotals(m),t=mealTotals(m,1/sv);
+  let h=header(m.isNew?"New meal":"Edit meal","","ml_cancel");
+  h+=`<div class="card"><div class="field"><label class="lbl" for="mlName">Meal name</label><input type="text" id="mlName" value="${esc(m.name||"")}" placeholder="e.g. Taco night"></div>
+   <div class="field"><label class="lbl" for="mlServ">How many portions does this make?</label><input type="number" inputmode="decimal" step="any" min="1" id="mlServ" value="${sv}"></div>
+   <div class="sub">Example: 1 lb of taco meat that feeds you 3 times = 3 portions. When you log it you pick how many portions you ate.</div></div>`;
+  h+=`<div class="sect">Ingredients (whole meal)</div><div class="list">${m.items.map((c,i)=>`<button class="row" data-act="ml_item" data-v="${i}"><div class="grow"><span class="t">${esc(c.name)}${c.brand?` <span class="muted">· ${esc(c.brand)}</span>`:""}</span><span class="s num">${esc(amtTxt(c))} · ${Math.round(c.n.cal*c.qty)} cal · ${r1(netC(c.n)*c.qty)} g net · ${r1(c.n.p*c.qty)} g protein</span></div>${c.cps!=null?`<span class="cost num">${$$(c.cps*c.qty)}</span>`:`<span class="cost none">+ price</span>`}</button>`).join("")}
+   <button class="row" data-act="ml_add"><div class="grow"><span class="t" style="color:var(--accent)">+ Add an ingredient</span></div></button></div>`;
+  h+=`<div class="card glance" id="mlTot" ${m.items.length?"":"hidden"}>${mealTotHTML(m)}</div>`;
+  h+=`<div class="btns"><button class="btn primary" data-act="ml_save" style="flex:1">Save meal</button>${m.isNew?"":`<button class="btn danger" data-act="ml_del">Delete</button>`}<button class="btn" data-act="ml_cancel">Cancel</button></div>`;
+  return h;}
+function logMealSheet(id){const m=(S.meals||[]).find(x=>x.id===id);if(!m)return;const sv=Math.max(1,+m.servings||1);V.mlog={id,q:1};
+  if(!V.fmeal){const h=new Date().getHours();V.fmeal=h<11?"breakfast":h<15?"lunch":h<21?"dinner":"snack";}
+  sheet(`<h2>${esc(m.name)}</h2><div class="sub">${esc(m.items.map(c=>c.name).join(", "))}</div>
+   <div class="top"><button class="btn" data-act="ml_q" data-v="-0.5">−½</button><div class="grow field"><label class="lbl" for="mlq">${sv>1?`Portions eaten (meal makes ${sv})`:"How much of the meal"}</label><input type="number" inputmode="decimal" step="any" min="0" id="mlq" value="1" style="text-align:center;font-size:22px;font-weight:700"></div><button class="btn" data-act="ml_q" data-v="0.5">+½</button></div>
+   <div class="chips">${[0.5,1,1.5,2].map(x=>`<button class="chip" data-act="ml_qset" data-v="${x}">${x}</button>`).join("")}${sv>1?`<button class="chip" data-act="ml_qset" data-v="${sv}">Whole meal</button>`:""}</div>
+   <div id="mlprev">${mealPreview(m,1)}</div>
+   <div class="q"><label>Meal</label><div class="chips">${MEALS.map(([k2,l])=>`<button class="chip" data-act="f_meal" data-v="${k2}" aria-pressed="${V.fmeal===k2}">${l}</button>`).join("")}</div></div>
+   <div class="btns"><button class="btn primary" data-act="ml_logSave">Add to log</button><button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);}
+function mealPreview(m,q){const sv=Math.max(1,+m.servings||1);const t=mealTotals(m,(+q||0)/sv);const st=(v,l)=>`<div class="stat"><div class="v num">${v}</div><div class="k">${l}</div></div>`;
+  return `<div class="kv">${st(r1(t.net)+" g","Net carbs")}${st(Math.round(t.cal),"Calories")}${st(Math.round(t.p)+" g","Protein")}${st(t.priced?$$(t.cost):"–","Cost")}</div><div class="sub num">Total carbs ${r1(t.c)} g · sugar ${r1(t.sug)} g · fat ${Math.round(t.f)} g · sodium ${Math.round(t.na)} mg${t.unpriced?` · ${t.unpriced} ingredient${t.unpriced===1?"":"s"} not priced`:""}</div>`;}
+document.addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-act^='ml_']");if(!b)return;const a=b.dataset.act,v=b.dataset.v;const k=V.fday||dayKey();
+  const keepForm=()=>{if(V.mdraft&&$("#mlName")){V.mdraft.name=$("#mlName").value;V.mdraft.servings=parseFloat($("#mlServ").value)||1;}};
+  switch(a){
+    case"ml_open":V.mbuild=false;go("meals");break;
+    case"ml_back":go("food");break;
+    case"ml_new":V.mdraft={id:"m"+uidGen(),name:"",servings:1,items:[],isNew:true};V.mbuild=true;V.mbItem=null;go("mealEdit");break;
+    case"ml_edit":{const m=(S.meals||[]).find(x=>x.id===v);if(!m)break;V.mdraft=JSON.parse(JSON.stringify(m));V.mbuild=true;V.mbItem=null;go("mealEdit");break;}
+    case"ml_fromDay":{const its=(day(k).items||[]).filter(it=>it.meal===v);V.mdraft={id:"m"+uidGen(),name:"",servings:1,isNew:true,items:its.map(it=>compFrom(it,it.qty||1,it.unit,it.amt,it.cps))};V.mbuild=true;V.mbItem=null;go("mealEdit");setTimeout(()=>{const e=$("#mlName");if(e)e.focus();},50);break;}
+    case"ml_add":keepForm();V.mbItem=null;V.fq="";V.fcat=null;V.fonline=null;go("foodAdd");break;
+    case"ml_item":{keepForm();const i=+v;V.mbItem=i;const c=V.mdraft.items[i];amountSheet({name:c.name,brand:c.brand,serving:c.serving,sz:c.sz,spc:c.spc,n:c.n,cat:c.cat,recipeId:c.recipeId},null,c.unit||"srv");break;}
+    case"ml_itemDel":V.mdraft.items.splice(V.mbItem,1);V.mbItem=null;closeSheet();render();break;
+    case"ml_cancel":V.mdraft=null;V.mbuild=false;go("meals");break;
+    case"ml_save":{keepForm();const m=V.mdraft;if(!m.name.trim()){toast("Give the meal a name");$("#mlName").focus();break;}if(!m.items.length){toast("Add at least one ingredient");break;}
+      m.name=m.name.trim();m.servings=Math.max(1,+m.servings||1);delete m.isNew;m.updated=Date.now();S.meals=[m,...(S.meals||[]).filter(x=>x.id!==m.id)];saveProfile();
+      V.mdraft=null;V.mbuild=false;toast(`Saved "${m.name}"`);go("meals");break;}
+    case"ml_del":{if(!confirm("Delete this meal? Days you already logged keep their food."))break;S.meals=(S.meals||[]).filter(x=>x.id!==V.mdraft.id);saveProfile();V.mdraft=null;V.mbuild=false;go("meals");break;}
+    case"ml_log":logMealSheet(v);break;
+    case"ml_q":{const i=$("#mlq");i.value=Math.max(0,r2((+i.value||0)+(+v)));$("#mlprev").innerHTML=mealPreview(S.meals.find(x=>x.id===V.mlog.id),i.value);break;}
+    case"ml_qset":{const i=$("#mlq");i.value=v;$("#mlprev").innerHTML=mealPreview(S.meals.find(x=>x.id===V.mlog.id),v);break;}
+    case"ml_logSave":{const m=S.meals.find(x=>x.id===V.mlog.id);const q=parseFloat($("#mlq").value);if(!(q>0)){toast("Enter how much you ate");break;}
+      const sc=q/Math.max(1,+m.servings||1);const d=day(k,true);const now=Date.now();
+      m.items.forEach((c,i)=>{const it={uid:uidGen(),name:c.name,brand:c.brand||"",serving:c.serving,n:c.n,cat:c.cat||"",qty:Math.round(c.qty*sc*10000)/10000,meal:V.fmeal||"dinner",at:now+i,from:m.name};
+        if(c.sz)it.sz=c.sz;if(c.spc)it.spc=c.spc;if(c.unit&&c.amt!=null){it.unit=c.unit;it.amt=r2(c.amt*sc);}if(c.cps!=null)it.cps=c.cps;d.items.push(it);});
+      m.lastUsed=now;saveProfile();saveDay(k);closeSheet();toast(`Added ${m.name} (${m.items.length} ingredients)`);V.mbuild=false;V.fret=null;go(V.view==="money"?"money":"food");break;}
+  }
+});
+document.addEventListener("input",ev=>{const t=ev.target;if(t.id==="mlq"&&V.mlog){$("#mlprev").innerHTML=mealPreview(S.meals.find(x=>x.id===V.mlog.id),t.value);}
+  if((t.id==="mlName"||t.id==="mlServ")&&V.mdraft){if(t.id==="mlName")V.mdraft.name=t.value;else{V.mdraft.servings=parseFloat(t.value)||1;const e=$("#mlTot");if(e)e.innerHTML=mealTotHTML(V.mdraft);}}});
+function mealTotHTML(m){const sv=Math.max(1,+m.servings||1);const w=mealTotals(m),t=mealTotals(m,1/sv);if(!m.items.length)return"";const st=(v,l)=>`<div class="stat"><div class="v num">${v}</div><div class="k">${l}</div></div>`;
+  return `<h3>${sv>1?`Per portion (1 of ${r2(sv)})`:"Whole meal"}</h3><div class="kv3">${st(Math.round(t.cal),"Calories")}${st(r1(t.net)+" g","Net carbs")}${st(r1(t.c)+" g","Total carbs")}${st(r1(t.sug)+" g","Sugar")}${st(Math.round(t.p)+" g","Protein")}${st(Math.round(t.f)+" g","Fat")}${st(r1(t.fib)+" g","Fiber")}${st(Math.round(t.na),"Sodium (mg)")}${st(w.priced?$$(t.cost):"–","Cost")}</div>
+     ${sv>1?`<div class="sub num">Whole meal: ${Math.round(w.cal)} cal · ${r1(w.net)} g net · ${Math.round(w.p)} g protein${w.priced?` · ${$$(w.cost)}`:""}</div>`:""}${w.unpriced?`<div class="sub">${w.unpriced} ingredient${w.unpriced===1?" has":"s have"} no price yet; tap ${w.unpriced===1?"it":"them"} to add one.</div>`:""}`;}
+
 /* ---------- gauge ---------- */
 function gaugeSVG(val,goal,label,unitTxt){
   const pct=goal?Math.min(1,val/goal):0;const L=Math.PI*80;
@@ -1220,14 +1295,16 @@ function vFood(){
   // water
   const w=d.water||0;
   h+=`<div class="card"><div class="top"><div class="grow"><h3>Water</h3><div class="sub num">${w} / ${g.water} oz</div></div><button class="btn" data-act="f_water" data-v="-8">−8</button><button class="btn primary" data-act="f_water" data-v="8">+8 oz</button><button class="btn primary" data-act="f_water" data-v="16">+16</button></div><div class="bar"><i style="width:${Math.min(100,w/g.water*100)}%;background:#4aa8ff"></i></div></div>`;
+  h+=`<button class="btn primary block" data-act="ml_open">My meals${(S.meals||[]).length?` (${S.meals.length})`:""}</button>`;
   h+=`<button class="btn block" data-act="f_recipes">Recipe vault${(S.recipes||[]).length?` (${S.recipes.length})`:""}</button>`;
   h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scanQuick" style="flex:1">Scan a barcode</button>`:""}<button class="btn primary" data-act="f_labelQuick" style="flex:1">Photo of a nutrition label</button><button class="btn primary" data-act="f_importQuick" style="flex:1">Paste from Claude</button></div>`;
   // meals
   MEALS.forEach(([m,l])=>{const items=(d.items||[]).map((it,i)=>({it,i})).filter(x=>x.it.meal===m);
     const mt=items.reduce((a,x)=>a+netC(x.it.n)*(x.it.qty||1),0);const mc=items.reduce((a,x)=>a+(x.it.n.cal||0)*(x.it.qty||1),0);
     h+=`<div class="sect" style="display:flex;justify-content:space-between"><span>${l}</span><span class="num" style="letter-spacing:0">${items.length?r1(mt)+" g net · "+Math.round(mc)+" cal":""}</span></div><div class="list">`+
-      items.map(({it,i})=>`<button class="row" data-act="f_edit" data-v="${i}"><div class="grow"><span class="t">${esc(it.name)}${it.brand?` <span class="muted">· ${esc(it.brand)}</span>`:""}</span><span class="s num">${esc(amtTxt(it))} · ${Math.round(it.n.cal*it.qty)} cal · ${r1(it.n.p*it.qty)} g protein${it.cps!=null?` · ${$$(itemCost(it))}`:""}</span></div><span class="pill num ${netC(it.n)*it.qty>5?"pr":""}">${r1(netC(it.n)*it.qty)} g</span></button>`).join("")+
-      `<button class="row" data-act="f_add" data-v="${m}"><div class="grow"><span class="t" style="color:var(--accent)">+ Add to ${l.toLowerCase()}</span></div></button></div>`;});
+      items.map(({it,i})=>`<button class="row" data-act="f_edit" data-v="${i}"><div class="grow"><span class="t">${esc(it.name)}${it.brand?` <span class="muted">· ${esc(it.brand)}</span>`:""}</span><span class="s num">${esc(amtTxt(it))} · ${Math.round(it.n.cal*it.qty)} cal · ${r1(it.n.p*it.qty)} g protein${it.cps!=null?` · ${$$(itemCost(it))}`:""}</span>${it.from?`<span class="s">from ${esc(it.from)}</span>`:""}</div><span class="pill num ${netC(it.n)*it.qty>5?"pr":""}">${r1(netC(it.n)*it.qty)} g</span></button>`).join("")+
+      `<button class="row" data-act="f_add" data-v="${m}"><div class="grow"><span class="t" style="color:var(--accent)">+ Add to ${l.toLowerCase()}</span></div></button></div>`+
+      (items.length>=2?`<button class="pill" data-act="ml_fromDay" data-v="${m}" style="align-self:flex-start">Save these ${items.length} as a meal</button>`:"");});
   const keto=!(S.profile&&S.profile.diet==="none");
   if(!S.profile&&k===dayKey())h=h.replace(/^/,"")+`<div class="card hot"><h3>Get to know you</h3><div class="sub">Answer a few quick questions (about 2 minutes) so the app can fine-tune your calories, protein, carbs and workout plan to you.</div><div class="btns"><button class="btn primary" data-act="ob_start">Start</button><button class="btn ghost" data-act="ob_later">Not now</button></div></div>`;
   h+=(keto?ketoCheckCard(k):"")+checkinCard(k)+(keto?ketoHistoryCard()+ketoRecordCard():"")+outlookCard()+insightsCard()+tipsCard()+activityCard(k);
@@ -1425,13 +1502,14 @@ function tipsCard(){const n=Math.floor(Date.now()/864e5);return `<div class="car
 /* ---------- add food ---------- */
 function vFoodAdd(){
   const q=(V.fq||"").trim().toLowerCase();const cat=V.fcat||null;const meal=MEALS.find(m=>m[0]===V.fmeal)||MEALS[0];
-  let h=header("Add to "+meal[1].toLowerCase(),"","f_back");
+  let h=V.mbuild?header("Add to meal",esc(V.mdraft&&V.mdraft.name||"New meal"),"f_back"):header("Add to "+meal[1].toLowerCase(),"","f_back");
   h+=`<input type="search" id="fq" placeholder="Search foods, brands, spices…" value="${esc(V.fq||"")}" aria-label="Search foods" autocomplete="off">`;
   h+=`<div class="chips">${FOOD_CATS.map(([c,l])=>`<button class="chip" data-act="f_cat" data-v="${c}" aria-pressed="${cat===c}" style="padding:6px 11px;font-size:13px">${l}</button>`).join("")}</div>`;
   h+=`<div class="btns">${window.REP_PWA?`<button class="btn primary" data-act="f_scan">Scan barcode</button>`:""}<button class="btn primary" data-act="f_label">Read a nutrition label (photo)</button><button class="btn primary" data-act="f_import">Paste from Claude</button><button class="btn" data-act="f_custom">Type in a label</button>${window.REP_PWA?`<button class="btn" data-act="f_online" ${q.length<2?"disabled":""}>Search brands online</button>`:""}</div>`;
   const match=f=>(!q||(f.name+" "+f.brand).toLowerCase().includes(q))&&(!cat||f.cat===cat);
   const row=(f,src,i)=>`<button class="row" data-act="f_pick" data-src="${src}" data-v="${esc(i)}"><div class="grow"><span class="t">${esc(f.name)}${f.brand?` <span class="muted">· ${esc(f.brand)}</span>`:""}</span><span class="s num">${esc(f.serving)} · ${Math.round(f.n.cal)} cal · ${r1(f.n.p)} g protein · ${r1(f.n.sug)} g sugar</span></div><span class="pill num ${netC(f.n)>5?"pr":"ok"}">${r1(netC(f.n))} g net</span></button>`;
   const hf=histFoods();
+  if(!V.mbuild&&!cat){const ms=(S.meals||[]).filter(m=>!q||m.name.toLowerCase().includes(q));if(ms.length)h+=`<div class="sect">My meals</div><div class="list">${ms.map(mealRow).join("")}</div>`;}
   if(!q&&!cat&&hf.length)h+=`<div class="sect">My foods (most logged)</div><div class="list">${hf.slice(0,12).map((x,i)=>row(x.food,"hist",i).replace("</span></div><span class=\"pill",`</span><span class="s">logged ${x.n}×</span></div><span class="pill`)).join("")}</div>`;
   if(q){const hm=hf.map((x,i)=>({x,i})).filter(({x})=>(x.food.name+" "+(x.food.brand||"")).toLowerCase().includes(q)&&!allFoods().some(f=>f.name===x.food.name&&(f.brand||"")===(x.food.brand||"")));if(hm.length)h+=`<div class="sect">From your log</div><div class="list">${hm.slice(0,15).map(({x,i})=>row(x.food,"hist",i)).join("")}</div>`;}
   if(!q&&!cat&&(S.recentFoods||[]).length)h+=`<div class="sect">Recent</div><div class="list">${S.recentFoods.slice(0,10).map((f,i)=>row(f,"recent",i)).join("")}</div>`;
@@ -1501,7 +1579,8 @@ function curUnit(){return(V.fpending&&V.fpending.unit)||"srv";}
 function curQty(){const f=V.fpending.food;return toServings(f,$("#fqty").value,curUnit());}
 function qtyChips(u){if(u==="pkg")return[[0.25,"¼"],[0.33,"⅓"],[0.5,"½"],[0.75,"¾"],[1,"All"]].map(([x,l])=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${l}</button>`).join("");return(u==="srv"?[0.5,1,1.5,2,3]:u==="g"?[50,100,150,200,250]:u==="oz"?[2,4,6,8,12]:u==="lb"?[0.25,0.5,0.75,1,1.5]:u==="fl oz"?[4,8,12,16,20]:u==="ml"?[100,250,355,500]:u==="cup"?[0.25,0.5,1,1.5,2]:u==="kg"?[0.25,0.5,1]:u==="L"?[0.5,1,2]:[1,2,3,4]).map(x=>`<button class="chip" data-act="f_qtyset" data-v="${x}">${x}</button>`).join("");}
 function amountSheet(food,editIdx,keepUnit){food=withSaved(food);
-  const it=editIdx!=null?day(V.fday||dayKey()).items[editIdx]:null;
+  const mb=V.mbuild&&V.mbItem!=null&&V.mdraft?V.mdraft.items[V.mbItem]:null;
+  const it=mb||(editIdx!=null?day(V.fday||dayKey()).items[editIdx]:null);
   const us=[...(food.spc>0?["pkg"]:[]),...unitsFor(food)];const lastU=((S.settings.lastUnit||{})[foodKey(food)]);
   let unit=keepUnit||(it?(it.unit||"srv"):(lastU||"srv"));if(unit!=="srv"&&!us.includes(unit))unit="srv";
   V.fpending={food,editIdx,unit};
@@ -1517,8 +1596,8 @@ function amountSheet(food,editIdx,keepUnit){food=withSaved(food);
    ${(()=>{const n=food.n;const m=`${r1(n.c||0)} total − ${r1(n.fib||0)} fiber${n.sa?` − ${r1(n.sa)} erythritol`:""}${n.al?` − ${r1(n.al)} allulose`:""}${n.sa2?` − ${r1(n.sa2/2)} (half of ${r1(n.sa2)} sugar alcohols)`:""} = <b>${r1(netC(n))} g net</b> per serving`;
      return `<div class="sub num">Net carbs: ${m}</div>${food.recipeId?"":n.sa2?`<div class="ins warn">${r1(n.sa2)} g sugar alcohols are counted at half. If the ingredients list <b>erythritol</b>, subtract all of it: <button class="pill" data-act="f_eryFix">It's erythritol</button></div>`:(!n.sa&&!n.al&&(n.c||0)-(n.fib||0)>=5)?`<button class="pill" data-act="f_eryAdd" style="align-self:flex-start">Has erythritol or allulose? Add it</button>`:""}`;})()}
    ${food.recipeId?`<div class="sub">To change this recipe's nutrition, edit it in the Recipe vault.</div>`:`<button class="pill" data-act="f_editNut" style="align-self:flex-start">Numbers look wrong? Edit this food's nutrition</button>`}
-   ${editIdx==null?`<div class="q"><label>Meal</label><div class="chips">${MEALS.map(([m,l])=>`<button class="chip" data-act="f_meal" data-v="${m}" aria-pressed="${(V.fmeal||"breakfast")===m}">${l}</button>`).join("")}</div></div>`:""}
-   <div class="btns"><button class="btn primary" data-act="f_save">${editIdx==null?"Add":"Update"}</button>${editIdx!=null?`<button class="btn danger" data-act="f_del">Remove</button>`:""}<button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);
+   ${editIdx==null&&!V.mbuild?`<div class="q"><label>Meal</label><div class="chips">${MEALS.map(([m,l])=>`<button class="chip" data-act="f_meal" data-v="${m}" aria-pressed="${(V.fmeal||"breakfast")===m}">${l}</button>`).join("")}</div></div>`:""}
+   <div class="btns"><button class="btn primary" data-act="f_save">${V.mbuild?(mb?"Update":"Add to meal"):editIdx==null?"Add":"Update"}</button>${mb?`<button class="btn danger" data-act="ml_itemDel">Remove</button>`:editIdx!=null&&!V.mbuild?`<button class="btn danger" data-act="f_del">Remove</button>`:""}<button class="btn" data-act="closeSheetBtn">Cancel</button></div>`);
 }
 function amountPreview(food,q,cps){const n=food.n;q=+q||0;const u=V.fpending&&V.fpending.unit;
   return `${u&&u!=="srv"?`<div class="sub num">= <b>${r2(q)} serving${r2(q)===1?"":"s"}</b> of ${esc(food.serving)}</div>`:""}${cps!=null?`<div class="sub num">Cost for ${r1(q)} serving${q===1?"":"s"}: <b>${$$(cps*q)}</b></div>`:""}<div class="kv"><div class="stat"><div class="v num">${r1(netC(n)*q)} g</div><div class="k">Net carbs</div></div><div class="stat"><div class="v num">${Math.round(n.cal*q)}</div><div class="k">Calories</div></div>
@@ -1927,8 +2006,8 @@ document.addEventListener("click",ev=>{
   switch(a){
     case"f_day":{const nk=shiftDay(k,+v);if(nk>dayKey())break;V.fday=nk===dayKey()?null:nk;render();break;}
     case"f_water":{const d=day(k,true);d.water=Math.max(0,(d.water||0)+(+v));saveDay(k);render();break;}
-    case"f_add":V.fret=null;V.fmeal=v;V.fq="";V.fcat=null;V.fonline=null;go("foodAdd");break;
-    case"f_back":{V.fonline=null;const back=V.fret==="money"?"money":"food";V.fret=null;go(back);break;}
+    case"f_add":V.fret=null;V.mbuild=false;V.fmeal=v;V.fq="";V.fcat=null;V.fonline=null;go("foodAdd");break;
+    case"f_back":{V.fonline=null;if(V.mbuild){go("mealEdit");break;}const back=V.fret==="money"?"money":"food";V.fret=null;go(back);break;}
     case"f_cat":V.fcat=V.fcat===v?null:v;render();break;
     case"f_online":onlineSearch((V.fq||"").trim());break;
     case"f_pick":{const src=b.dataset.src;const food=src==="db"?allFoods().find(f=>f.id===v):src==="recent"?S.recentFoods[+v]:src==="hist"?histFoods()[+v].food:V.fonline[+v];if(food)amountSheet(JSON.parse(JSON.stringify(food)),null);break;}
@@ -1945,7 +2024,11 @@ document.addEventListener("click",ev=>{
     case"f_eryAdd":{const p=V.fpending;customSheet(p.food.barcode,p.food,p.editIdx);setTimeout(()=>{const e=$("#cf_ery");if(e){e.focus();e.scrollIntoView({block:"center"});}},50);break;}
     case"f_editNut":{const p=V.fpending;customSheet(p.food.barcode,p.food,p.editIdx);break;}
     case"f_meal":V.fmeal=v;document.querySelectorAll("[data-act=f_meal]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===v));break;
-    case"f_save":{const p=V.fpending;const q=curQty();if(!(q>0)){toast("Enter how much you had");break;}const d=day(k,true);const cps=curCps();const u=curUnit();const amt=+$("#fqty").value;
+    case"f_save":{const p=V.fpending;const q=curQty();if(!(q>0)){toast("Enter how much you had");break;}
+      if(V.mbuild&&V.mdraft){const u=curUnit(),amt=+$("#fqty").value,cps=curCps();const c=compFrom(p.food,q,u,amt,cps);
+        if(V.mbItem!=null)V.mdraft.items[V.mbItem]=c;else V.mdraft.items.push(c);V.mbItem=null;
+        if(cps!=null){const m=money();m.foodCost=m.foodCost||{};m.foodCost[foodKey(p.food)]=Math.round(cps*100)/100;saveMoney();}
+        closeSheet();go("mealEdit");break;}const d=day(k,true);const cps=curCps();const u=curUnit();const amt=+$("#fqty").value;
       const setAmt=it=>{it.qty=Math.round(q*10000)/10000;if(u!=="srv"){it.amt=amt;it.unit=u;}else{delete it.amt;delete it.unit;}if(p.food.sz)it.sz=p.food.sz;if(p.food.spc)it.spc=p.food.spc;};
       if(p.editIdx!=null){const it=d.items[p.editIdx];setAmt(it);if(cps!=null)it.cps=Math.round(cps*100)/100;else delete it.cps;}
       else{const f=p.food;const it={uid:uidGen(),name:f.name,brand:f.brand||"",serving:f.serving,n:f.n,cat:f.cat||"",meal:V.fmeal||"snack",at:Date.now()};setAmt(it);if(cps!=null)it.cps=Math.round(cps*100)/100;d.items.push(it);addRecent({name:f.name,brand:f.brand||"",serving:f.serving,sz:f.sz,n:f.n,cat:f.cat||"",barcode:f.barcode||undefined});}
@@ -2518,7 +2601,7 @@ document.addEventListener("input",ev=>{if(ev.target.id==="pq"){V.pq=ev.target.va
 /* ============================================================
    DATA SAFETY: second copy in IndexedDB, update notice, backup reminder
    ============================================================ */
-const APP_VERSION="2026.11.13";
+const APP_VERSION="2026.11.13b";
 let IDBP=null;
 function idbOpen(){if(IDBP)return IDBP;IDBP=new Promise(res=>{try{const r=indexedDB.open("repledger",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});return IDBP;}
 async function idbGet(){const db=await idbOpen();if(!db)return null;return new Promise(res=>{try{const q=db.transaction("kv","readonly").objectStore("kv").get("state");q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
@@ -2833,7 +2916,7 @@ document.addEventListener("click",async ev=>{
       (d.custom||[]).forEach(c=>{if(!S.custom.find(x=>x.id===c.id))S.custom.push(c);});
       if(d.version>=2){if(d.days)Object.keys(d.days).forEach(k=>{if(!S.days[k]||(d.days[k].updatedAt||0)>(S.days[k].updatedAt||0))S.days[k]=d.days[k];});
         if(d.bw){const mp=new Map((S.bw||[]).map(x=>[x.d,x]));d.bw.forEach(x=>{if(!mp.has(x.d))mp.set(x.d,x);});S.bw=[...mp.values()].sort((a,b)=>a.d.localeCompare(b.d));}
-        ["customFoods","recentFoods","shop","profile","customProgram","money","plan","routines","lastOpts","recipes"].forEach(f=>{if(d[f]&&(!S[f]||(Array.isArray(S[f])&&!S[f].length)))S[f]=d[f];});
+        ["customFoods","recentFoods","shop","profile","customProgram","money","plan","routines","lastOpts","recipes","meals"].forEach(f=>{if(d[f]&&(!S[f]||(Array.isArray(S[f])&&!S[f].length)))S[f]=d[f];});
         if(d.settings)S.settings={...d.settings,...S.settings};}
       saveProfile();toast(`Restored ${n} workout${n===1?"":"s"}`);render();}catch(e){toast("That doesn't look like a Rep Ledger backup");}break;}
   }
@@ -2842,7 +2925,7 @@ function addToRoutine(exId,opts){const pf=V.pickFor||"";const r=pf.startsWith("p
   if(r){r.items.push({exId,opts,sets:3,lo:S.settings.lo,hi:S.settings.hi,rest:90});S.lastOpts[exId]=opts;saveProfile();toast("Added to "+r.name);}
   go("routine",{rid:r&&!V.planDate?r.id:V.rid});}
 function vPickGroup(){return header("Add to "+esc((((V.pickFor||"").startsWith("plan:")?ensurePlan(V.pickFor.slice(5)):routines().find(x=>x.id===V.pickFor))||{}).name||"workout"),"Pick a muscle group","pickCancel")+`<div class="grid">`+GROUPS.map(g=>`<button class="gbtn" data-act="group" data-v="${g.id}"><b>${g.name}</b><span>${g.blurb}</span></button>`).join("")+`</div>`;}
-function backupText(){return JSON.stringify({app:"rep-ledger",version:2,exported:new Date().toISOString(),settings:S.settings,custom:S.custom,workouts:S.workouts,days:S.days,bw:S.bw,routines:S.routines,customFoods:S.customFoods,recentFoods:S.recentFoods,shop:S.shop,profile:S.profile,customProgram:S.customProgram,money:S.money,plan:S.plan,recipes:S.recipes,lastOpts:S.lastOpts});}
+function backupText(){return JSON.stringify({app:"rep-ledger",version:2,exported:new Date().toISOString(),settings:S.settings,custom:S.custom,workouts:S.workouts,days:S.days,bw:S.bw,routines:S.routines,customFoods:S.customFoods,recentFoods:S.recentFoods,shop:S.shop,profile:S.profile,customProgram:S.customProgram,money:S.money,plan:S.plan,recipes:S.recipes,meals:S.meals,lastOpts:S.lastOpts});}
 
 document.addEventListener("toggle",ev=>{if(ev.target.id==="addFold")V.addOpen=ev.target.open;},true);
 document.addEventListener("input",ev=>{
